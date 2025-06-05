@@ -24,7 +24,7 @@ jobs:
       
     - name: Deploy to Railway Staging
       env:
-        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
       run: |
         railway environment staging
         railway service e24b40e8-1586-4fe9-9dea-35661be40df7
