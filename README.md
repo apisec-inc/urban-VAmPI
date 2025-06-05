@@ -276,6 +276,8 @@ vulnerable=0  # Disable vulnerable mode for security
 
 ## 🤖 Automated Deployment Status
 
+> GitLab Runners take **forever** to process a workflow; Use manual deploy!!
+
 ### ✅ **STAGING: FULLY OPERATIONAL**
 **Automated staging deployment** is active and working:
 - 🚀 **Push to `develop`** → Auto-deploy to staging in ~1m 20s
