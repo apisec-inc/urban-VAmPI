@@ -116,3 +116,11 @@ If you would like to alter the timeout of the token created after login or if yo
 
  [Picture from freepik - www.freepik.com](https://www.freepik.com/vectors/party)
 
+## Getting Started
+Essential curl commands
+Database must be initialized on first deploy
+```bash
+curl -s https://urban-vampi-production.up.railway.app/users/v1 | head -20
+curl -s https://urban-vampi-production.up.railway.app/createdb
+curl -s https://urban-vampi-production.up.railway.app/users/v1
+```
