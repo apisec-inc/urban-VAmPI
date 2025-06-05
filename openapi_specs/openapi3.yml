@@ -59,6 +59,36 @@ paths:
                   vulnerable:
                     type: number
                     example: 1
+  /deployment-test:
+    get:
+      tags:
+        - home
+      summary: Auto-deployment test endpoint
+      description: Test endpoint to verify auto-deployment functionality
+      operationId: api_views.main.deployment_test
+      responses:
+        '200':
+          description: Deployment test status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: 'VAmPI Auto-Deploy Test - Sprint 9.1'
+                  timestamp:
+                    type: string
+                    example: '2024-01-25T12:00:00.000000'
+                  environment:
+                    type: string
+                    example: 'staging'
+                  git_branch:
+                    type: string
+                    example: 'develop'
+                  deployment_status:
+                    type: string
+                    example: 'SUCCESS'
   /users/v1:
     get:
       tags:

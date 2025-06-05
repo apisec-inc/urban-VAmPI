@@ -18,16 +18,22 @@ def basic():
     response = Response(response_text, 200, mimetype='application/json')
     return response
 
-@main.route('/deployment-test', methods=['GET'])
 def deployment_test():
     """Test endpoint to verify auto-deployment functionality"""
     import os
     import datetime
     
-    return {
+    response_data = {
         'message': 'VAmPI Auto-Deploy Test - Sprint 9.1',
         'timestamp': datetime.datetime.now().isoformat(),
         'environment': os.getenv('RAILWAY_ENVIRONMENT', 'local'),
         'git_branch': 'develop',
         'deployment_status': 'SUCCESS'
     }
+    
+    response = Response(
+        response=str(response_data).replace("'", '"'),
+        status=200,
+        mimetype='application/json'
+    )
+    return response
