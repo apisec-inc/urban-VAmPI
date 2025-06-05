@@ -1,5 +1,25 @@
 # VAmPI
 **The Vulnerable API** *(Based on OpenAPI 3)*
+
+## 🔱 Fork Notice & Security Enhancements
+
+This is a **production-ready fork** of the original [VAmPI project by erev0s](https://github.com/erev0s/VAmPI), enhanced with enterprise security best practices for safe deployment in controlled environments.
+
+### 🔒 Production Security Improvements Applied:
+- **Non-root Docker user configuration** - Container runs with dedicated user account (not root)
+- **Enhanced containerization** - Production-capable Docker setup with security hardening
+- **Deployment-ready configuration** - Safe for enterprise CI/CD pipeline integration
+- **APIsec integration ready** - Configured for automated security scanning workflows
+
+### 🎯 Purpose:
+This fork maintains all original VAmPI vulnerability demonstrations while adding the security foundation necessary for:
+- **Enterprise security training environments**
+- **Automated security scanning demonstrations** 
+- **CI/CD pipeline security testing**
+- **Production-grade vulnerability assessment workflows**
+
+⚠️ **Important:** While security-hardened for deployment, this API intentionally contains vulnerabilities for educational and testing purposes. Deploy only in controlled environments.
+
 ![vampi](https://i.imgur.com/zR0quKf.jpg)
 
 [![Docker Image CI](https://github.com/erev0s/VAmPI/actions/workflows/docker-image.yml/badge.svg)](https://github.com/erev0s/VAmPI/actions/workflows/docker-image.yml) ![Docker Pulls](https://img.shields.io/docker/pulls/erev0s/vampi)
