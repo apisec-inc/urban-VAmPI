@@ -123,4 +123,60 @@ Database must be initialized on first deploy
 curl -s https://urban-vampi-production.up.railway.app/users/v1 | head -20
 curl -s https://urban-vampi-production.up.railway.app/createdb
 curl -s https://urban-vampi-production.up.railway.app/users/v1
+# Connect to staging
+railway environment staging
+# Check environments and their triggers
+railway service urban-VAmPI# && railway status
+```
+
+Link current dir to staging
+```bash
+railway link -p 2e10ac7e-3afd-460c-956d-ce5a9a84577c
+```
+
+Troubleshooting environments and deployments
+```bash
+# Initial Railway environment check
+railway status
+
+# Switch to production environment and check service
+railway environment production
+railway service urban-VAmPI#
+railway status
+
+# Check production domain 
+railway domain
+
+# Check environment variables in production
+railway variables
+
+# Test API endpoints
+curl -s https://urban-vampi-production.up.railway.app/createdb
+curl -s https://urban-vampi-production.up.railway.app/users/v1
+
+# Check git branch structure
+git branch -a
+
+# Switch to staging environment
+railway environment staging
+railway service urban-VAmPI# && railway status
+
+# Check git remotes
+git remote -v
+
+# Check recent commit history
+git log --oneline -5
+
+# Test deployment behavior - make a test change
+git add . && git commit -m "test: deployment strategy tracking comment" && git push origin master
+
+# Monitor environments after push
+railway environment production && railway service urban-VAmPI#
+curl -s https://urban-vampi-production.up.railway.app/ | grep -o "VAmPI.*API"
+
+railway environment staging && railway service urban-VAmPI#
+railway logs | head -5
+
+# Final status check
+railway status
 ```
