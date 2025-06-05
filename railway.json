@@ -1,1 +1,12 @@
-{"build":{"builder":"NIXPACKS"},"deploy":{"startCommand":"python start_production.py"}}
+{
+  "$schema": "https://railway.com/railway.schema.json",
+  "build": {
+    "builder": "DOCKERFILE"
+  },
+  "deploy": {
+    "startCommand": "python start_production.py",
+    "healthcheckPath": "/",
+    "healthcheckTimeout": 300,
+    "restartPolicyType": "on_failure"
+  }
+}

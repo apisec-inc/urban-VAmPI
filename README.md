@@ -209,6 +209,9 @@ git checkout develop
 git pull origin develop
 railway environment staging
 railway up
+# check that staging endpoints are live
+curl -s https://urban-vampi-staging.up.railway.app/ | head -1
+curl -s https://urban-vampi-staging.up.railway.app/deployment-test
 ```
 
 #### Deploy to Production
