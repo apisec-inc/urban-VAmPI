@@ -1,0 +1,28 @@
+{
+  "project": "pacific-mindfulness",
+  "service": "urban-VAmPI#",
+  "environments": {
+    "production": {
+      "name": "production",
+      "url": "https://urban-vampi-production.up.railway.app",
+      "auto_deploy": {
+        "enabled": true,
+        "branches": ["master", "main", "release/*"]
+      }
+    },
+    "staging": {
+      "name": "staging", 
+      "url": "https://urban-vampi-staging.up.railway.app",
+      "auto_deploy": {
+        "enabled": true,
+        "branches": ["develop"]
+      }
+    }
+  },
+  "git_workflow": {
+    "main_branch": "master",
+    "develop_branch": "develop",
+    "feature_branches": "feature/*",
+    "release_branches": "release/*"
+  }
+} 
