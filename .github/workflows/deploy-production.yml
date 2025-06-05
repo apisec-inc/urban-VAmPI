@@ -26,7 +26,7 @@ jobs:
       
     - name: Deploy to Railway Production
       env:
-        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_PRODUCTION }}
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
       run: |
         railway environment production
         railway service e24b40e8-1586-4fe9-9dea-35661be40df7
