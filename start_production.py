@@ -20,4 +20,23 @@ if __name__ == '__main__':
     print(f"🔒 Vulnerable mode: {'ENABLED' if vuln else 'DISABLED'}")
     print(f"⚡ Using Waitress WSGI server (production-ready)")
     print(f"🛡️  Debug mode: {vuln_app.app.config['DEBUG']}")
+    
+    # Initialize database tables and populate with default data
+    print("🗄️  Initializing database...")
+    with vuln_app.app.app_context():
+        from config import db
+        from models.user_model import User
+        
+        # Create all tables
+        db.create_all()
+        print("✅ Database tables created")
+        
+        # Populate with initial data if empty
+        if not User.query.first():
+            User.init_db_users()
+            print("✅ Database populated with initial user data")
+        else:
+            print("ℹ️  Database already contains data, skipping initialization")
+    
+    print("🌐 Starting server...")
     serve(vuln_app, host='0.0.0.0', port=port)
