@@ -6,12 +6,28 @@ RUN pip install -r requirements.txt
 
 # Build a fresh container, copying across files & compiled parts
 FROM python:3.11-alpine
+
+# Create non-root user in Alpine
+RUN addgroup -g 1001 -S vampi && \
+    adduser -S vampi -u 1001 -G vampi
+
 COPY . /vampi
 WORKDIR /vampi
 COPY --from=builder /usr/local/lib /usr/local/lib
 COPY --from=builder /usr/local/bin /usr/local/bin
-ENV vulnerable=1
+
+# Change ownership to vampi user
+RUN chown -R vampi:vampi /vampi
+
+# Switch to non-root user
+USER vampi
+
+# Production environment variables
+ENV vulnerable=0
 ENV tokentimetolive=60
+ENV FLASK_ENV=production
+
+EXPOSE 5000
 
 ENTRYPOINT ["python"]
-CMD ["app.py"]
+CMD ["start_production.py"]
