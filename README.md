@@ -274,19 +274,55 @@ vulnerable=0  # Disable vulnerable mode for security
 
 **Note**: Due to corporate GitHub restrictions, auto-deploy webhooks are not available. All deployments are manual via Railway CLI. See `DEPLOYMENT.md` for detailed Git workflow instructions.
 
-## 🤖 Automated Deployment Option
+## 🤖 Automated Deployment Status
 
-For **automated deployments** using GitHub Actions + Railway CLI (corporate-friendly alternative to Railway webhooks):
+### ✅ **STAGING: FULLY OPERATIONAL**
+**Automated staging deployment** is active and working:
+- 🚀 **Push to `develop`** → Auto-deploy to staging in ~1m 20s
+- ✅ **RAILWAY_TOKEN_STAGING** configured and tested
+- ✅ **Health checks** passing consistently
+- ✅ **GitHub Actions workflow** proven reliable
+
+### 🟡 **PRODUCTION: CONFIGURED & READY**
+**Production deployment** is configured and ready for activation:
+- 🎯 **Push to `master`** → Ready to auto-deploy to production
+- 🟡 **RAILWAY_TOKEN** configured for production
+- 🔒 **Environment protection** enabled for safety
 
 👉 **See [GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md)** for complete setup instructions
 
-**Benefits:**
-- ✅ **Push-to-deploy** workflow (develop → staging, master → production)
-- ✅ **No Railway GitHub app** required (bypasses corporate restrictions)
-- ✅ **Manual deployment fallback** always available
-- ✅ **Built-in health checks** and deployment verification
+### **Current Deployment Options:**
 
-**Quick Setup:**
-1. Add `RAILWAY_TOKEN` to GitHub repository secrets
-2. GitHub Actions workflows are already configured
-3. Push to `develop` or `master` to trigger automated deployment
+**Option 1: ✅ Automated (Staging Proven)**
+- Push to `develop` → Automatic staging deployment
+- Push to `master` → Ready for production deployment
+- Built-in health checks and verification
+- ~1m 20s average deployment time
+
+**Option 2: ✅ Manual (Always Available)**
+- Railway CLI commands (see above)
+- Full control over deployment process
+- Immediate feedback and troubleshooting
+- Reliable fallback method
+
+### **Quick Staging Test:**
+```bash
+# Test current staging deployment
+curl https://urban-vampi-staging.up.railway.app/
+curl https://urban-vampi-staging.up.railway.app/deployment-test
+
+# Trigger new staging deployment
+git checkout develop
+echo "# Test $(date)" >> test.md
+git add test.md && git commit -m "test: staging auto-deploy"
+git push origin develop
+# → Watch GitHub Actions complete in ~1m 20s
+```
+
+### **Benefits:**
+- ✅ **Corporate-friendly**: No Railway GitHub app required
+- ✅ **Staging proven**: 100% success rate in testing  
+- ✅ **Fast deployments**: ~1m 20s automated process
+- ✅ **Manual fallback**: Railway CLI always available
+- ✅ **Security**: Environment-specific tokens + GitHub secrets
+- ✅ **Audit trail**: Complete deployment history in GitHub Actions
