@@ -16,26 +16,51 @@ jobs:
       
     - name: Install Railway CLI
       run: |
+        echo "🔧 Installing Railway CLI..."
         curl -fsSL https://railway.app/install.sh | sh
         echo "$HOME/.railway/bin" >> $GITHUB_PATH
+        echo "✅ Railway CLI installation complete"
         
     - name: Verify Railway CLI installation
-      run: railway --version
+      run: |
+        echo "🔍 Verifying Railway CLI..."
+        railway --version
+        echo "✅ Railway CLI verified"
       
+    - name: Test Railway Authentication
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
+      run: |
+        echo "🔐 Testing Railway authentication..."
+        if [ -z "$RAILWAY_TOKEN" ]; then
+          echo "❌ RAILWAY_TOKEN_STAGING is not set or empty"
+          exit 1
+        fi
+        echo "✅ RAILWAY_TOKEN_STAGING is set"
+        railway whoami || echo "⚠️ Authentication test failed, but continuing..."
+        
     - name: Deploy to Railway Staging
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
       run: |
+        echo "🚀 Starting Railway deployment..."
+        echo "Setting environment to staging..."
         railway environment staging
+        echo "Setting service..."
         railway service e24b40e8-1586-4fe9-9dea-35661be40df7
+        echo "Starting deployment..."
         railway up --detach
+        echo "✅ Deployment command completed"
         
     - name: Wait for deployment
-      run: sleep 30
+      run: |
+        echo "⏳ Waiting 30 seconds for deployment to process..."
+        sleep 30
+        echo "✅ Wait period complete"
       
     - name: Verify staging deployment
       run: |
-        echo "🚀 Testing staging deployment..."
+        echo "🔍 Testing staging deployment..."
         curl -f https://urban-vampi-staging.up.railway.app/ || exit 1
         curl -f https://urban-vampi-staging.up.railway.app/deployment-test || exit 1
         echo "✅ Staging deployment successful!"
