@@ -186,3 +186,87 @@ echo "=== STAGING ENVIRONMENT ===" && curl -s https://urban-vampi-staging.up.rai
 # Comprehensive Service Validation
 echo "=== VAMPI DEPLOYMENT STATUS REPORT ===" && echo "Generated: $(date)" && echo -e "\n🚀 STAGING ENVIRONMENT:" && echo "URL: https://urban-vampi-staging.up.railway.app" && echo "Status: $(curl -s https://urban-vampi-staging.up.railway.app/ | jq -r '.message // "Error"')" && echo "Users: $(curl -s https://urban-vampi-staging.up.railway.app/users/v1 | jq -r '.users | length') users loaded" && echo -e "\n🏭 PRODUCTION ENVIRONMENT:" && echo "URL: https://urban-vampi-production.up.railway.app" && echo "Status: $(curl -s https://urban-vampi-production.up.railway.app/ | jq -r '.message // "Error"')" && echo "Users: $(curl -s https://urban-vampi-production.up.railway.app/users/v1 | jq -r '.users | length') users loaded"
 ```
+
+VAmPI Home Endpoint and Deployemnt Test Endpoint 9.1
+```bash
+curl https://urban-vampi-staging.up.railway.app/
+curl https://urban-vampi-staging.up.railway.app/deployment-test
+```
+
+## Railway Operations & Deployment Guide
+
+### Current Environment Setup
+- **Project**: pacific-mindfulness
+- **Service**: urban-VAmPI#
+- **Production**: https://urban-vampi-production.up.railway.app (from `master` branch)
+- **Staging**: https://urban-vampi-staging.up.railway.app (from `develop` branch)
+
+### Manual Deployment Commands
+
+#### Deploy to Staging
+```bash
+git checkout develop
+git pull origin develop
+railway environment staging
+railway up
+# check that staging endpoints are live
+curl -s https://urban-vampi-staging.up.railway.app/ | head -1
+curl -s https://urban-vampi-staging.up.railway.app/deployment-test
+```
+
+#### Deploy to Production
+```bash
+git checkout master
+git pull origin master
+railway environment production
+railway up
+```
+
+### Railway Environment Management
+```bash
+# Check current status
+railway status
+
+# Switch environments
+railway environment staging
+railway environment production
+
+# Link service if disconnected
+railway service urban-VAmPI#
+
+# View logs
+railway logs
+
+# Check environment variables
+railway variables
+
+# Set environment variables
+railway variables set KEY=value
+```
+
+### Environment Variables Configuration
+
+#### Both Environments
+```bash
+PORT=5000  # Railway's expected port
+```
+
+#### Staging Environment
+```bash
+RAILWAY_ENVIRONMENT=staging
+vulnerable=1  # Enable vulnerable mode for testing
+```
+
+#### Production Environment
+```bash
+RAILWAY_ENVIRONMENT=production
+vulnerable=0  # Disable vulnerable mode for security
+```
+
+### Troubleshooting
+- **Build fails**: Check Railway dashboard build logs
+- **Service disconnected**: Run `railway service urban-VAmPI#`
+- **Environment issues**: Verify variables with `railway variables`
+- **Deploy fails**: Check `railway.json` configuration and `start_production.py`
+
+**Note**: Due to corporate GitHub restrictions, auto-deploy webhooks are not available. All deployments are manual via Railway CLI. See `DEPLOYMENT.md` for detailed Git workflow instructions.

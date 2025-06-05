@@ -1,47 +1,55 @@
 # VAmPI Deployment Guide
 
-## Git Workflow & Auto-Deploy Strategy
+## Git Workflow & Manual Deploy Strategy
 
-This document outlines the Git workflow and automated Railway deployment configuration for the VAmPI (Vulnerable API) application.
+This document outlines the Git workflow and **manual** Railway deployment configuration for the VAmPI (Vulnerable API) application.
+
+**Note**: Due to corporate GitHub restrictions (we would need to install Railway 
+app in apisec-inc), auto-deploy webhooks are not available. We use a **manual deployment workflow** with proper branch management.
 
 ## Branch Strategy
 
 ### Branch-Environment Mapping
 
-| Branch Pattern | Environment | Auto-Deploy | Purpose |
-|---------------|-------------|-------------|---------|
-| `master` | Production | ✅ Yes | Stable production releases |
-| `develop` | Staging | ✅ Yes | Integration testing and QA |
-| `release/**` | Production | ✅ Yes | Release candidates and hotfixes |
-| `feature/**` | None | ❌ No | Feature development (manual testing only) |
+| Branch Pattern | Environment | Deploy Method | Purpose |
+|---------------|-------------|---------------|---------|
+| `master` | Production | 🔧 **Manual** | Stable production releases |
+| `develop` | Staging | 🔧 **Manual** | Integration testing and QA |
+| `release/**` | Production | 🔧 **Manual** | Release candidates and hotfixes |
+| `feature/**` | None | ❌ No deploy | Feature development (local testing only) |
 
 ### Environment URLs
 
 - **Production**: https://urban-vampi-production.up.railway.app
 - **Staging**: https://urban-vampi-staging.up.railway.app
 
-## Deployment Process
+## Manual Deployment Process
 
-### Automatic Deployments
-
-1. **Staging Deployments**: Any push to `develop` branch triggers automatic deployment to staging
-2. **Production Deployments**: Any push to `master` or `release/**` branches triggers automatic deployment to production
-
-### Manual Deployments
-
-For feature branches or manual deployments:
+### Deploy to Staging (from develop branch)
 
 ```bash
-# Deploy to staging
+# 1. Switch to develop and get latest changes
+git checkout develop
+git pull origin develop
+
+# 2. Deploy to staging
 railway environment staging
 railway up
+```
 
-# Deploy to production  
+### Deploy to Production (from master branch)
+
+```bash
+# 1. Switch to master and get latest changes  
+git checkout master
+git pull origin master
+
+# 2. Deploy to production
 railway environment production
 railway up
 ```
 
-## Development Workflow
+## Development Workflow (Updated)
 
 ### Feature Development
 
@@ -59,6 +67,15 @@ railway up
    ```
 
 4. Create pull request to merge into `develop`
+5. **After merge**: Manually deploy `develop` to staging for testing:
+   ```bash
+   git checkout develop
+   git pull origin develop
+   railway environment staging
+   railway up
+   ```
+
+6. **After QA approval**: Merge `develop` to `master` and deploy to production
 
 ### Release Process
 
@@ -70,7 +87,13 @@ railway up
    ```
 
 2. Perform final testing and bug fixes on release branch
-3. Merge release branch to `master`:
+3. **Test deployment**: Deploy release branch to staging manually:
+   ```bash
+   railway environment staging
+   railway up
+   ```
+
+4. Merge release branch to `master`:
    ```bash
    git checkout master
    git merge release/v1.2.3
@@ -78,7 +101,13 @@ railway up
    git push origin master --tags
    ```
 
-4. Merge back to `develop`:
+5. **Deploy to production**:
+   ```bash
+   railway environment production
+   railway up
+   ```
+
+6. Merge back to `develop`:
    ```bash
    git checkout develop
    git merge release/v1.2.3
@@ -95,7 +124,21 @@ railway up
    ```
 
 2. Apply hotfix and test
-3. Follow release process above
+3. **Test deployment**: Deploy hotfix to staging:
+   ```bash
+   railway environment staging
+   railway up
+   ```
+
+4. Follow release process above (steps 4-6)
+
+## Corporate GitHub Limitations
+
+- ❌ Cannot install Railway GitHub app
+- ❌ Auto-deploy webhooks not available  
+- ✅ Manual deployment via Railway CLI
+- ✅ Proper branch management and testing workflow
+- ✅ Config-as-code for consistent deployments
 
 ## Railway Configuration
 
