@@ -1,0 +1,16 @@
+{
+  "name": "vampi-deployment",
+  "version": "1.0.0",
+  "description": "VAmPI deployment scripts",
+  "scripts": {
+    "deploy:prod-secure": "git switch master && railway environment production && railway service e24b40e8-1586-4fe9-9dea-35661be40df7 && railway variables --set \"vulnerable=0\" && railway up --detach",
+    "deploy:prod-vulnerable": "git switch master && railway environment production && railway service e24b40e8-1586-4fe9-9dea-35661be40df7 && railway variables --set \"vulnerable=1\" && railway up --detach",
+    "deploy:staging-secure": "git switch develop && railway environment staging && railway service e24b40e8-1586-4fe9-9dea-35661be40df7 && railway variables --set \"vulnerable=0\" && railway up --detach",
+    "deploy:staging-vulnerable": "git switch develop && railway environment staging && railway service e24b40e8-1586-4fe9-9dea-35661be40df7 && railway variables --set \"vulnerable=1\" && railway up --detach",
+    "status": "railway status",
+    "logs:staging": "railway environment staging && railway service e24b40e8-1586-4fe9-9dea-35661be40df7 && railway logs",
+    "logs:production": "railway environment production && railway service e24b40e8-1586-4fe9-9dea-35661be40df7 && railway logs"
+  },
+  "author": "APIsec Demo Team",
+  "license": "MIT"
+} 
