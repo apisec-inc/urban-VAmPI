@@ -17,3 +17,17 @@ def basic():
                     'in APIs but it can also be used in learning/teaching purposes.", "vulnerable":' + "{}".format(vuln) + "}"
     response = Response(response_text, 200, mimetype='application/json')
     return response
+
+@main.route('/deployment-test', methods=['GET'])
+def deployment_test():
+    """Test endpoint to verify auto-deployment functionality"""
+    import os
+    import datetime
+    
+    return {
+        'message': 'VAmPI Auto-Deploy Test - Sprint 9.1',
+        'timestamp': datetime.datetime.now().isoformat(),
+        'environment': os.getenv('RAILWAY_ENVIRONMENT', 'local'),
+        'git_branch': 'develop',
+        'deployment_status': 'SUCCESS'
+    }
