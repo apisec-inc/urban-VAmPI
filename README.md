@@ -179,4 +179,10 @@ railway logs | head -5
 
 # Final status check
 railway status
+
+# Service Validation
+echo "=== STAGING ENVIRONMENT ===" && curl -s https://urban-vampi-staging.up.railway.app/ | grep -o "VAmPI.*API" && echo -e "\n=== PRODUCTION ENVIRONMENT ===" && curl -s https://urban-vampi-production.up.railway.app/ | grep -o "VAmPI.*API"
+
+# Comprehensive Service Validation
+echo "=== VAMPI DEPLOYMENT STATUS REPORT ===" && echo "Generated: $(date)" && echo -e "\n🚀 STAGING ENVIRONMENT:" && echo "URL: https://urban-vampi-staging.up.railway.app" && echo "Status: $(curl -s https://urban-vampi-staging.up.railway.app/ | jq -r '.message // "Error"')" && echo "Users: $(curl -s https://urban-vampi-staging.up.railway.app/users/v1 | jq -r '.users | length') users loaded" && echo -e "\n🏭 PRODUCTION ENVIRONMENT:" && echo "URL: https://urban-vampi-production.up.railway.app" && echo "Status: $(curl -s https://urban-vampi-production.up.railway.app/ | jq -r '.message // "Error"')" && echo "Users: $(curl -s https://urban-vampi-production.up.railway.app/users/v1 | jq -r '.users | length') users loaded"
 ```
