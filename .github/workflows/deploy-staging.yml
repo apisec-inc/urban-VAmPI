@@ -1,0 +1,49 @@
+name: Deploy to Railway Staging
+
+on:
+  push:
+    branches: [ develop ]
+  workflow_dispatch:
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging Environment
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Railway CLI
+      run: |
+        curl -fsSL https://railway.app/install.sh | sh
+        echo "$HOME/.railway/bin" >> $GITHUB_PATH
+        
+    - name: Verify Railway CLI installation
+      run: railway --version
+      
+    - name: Deploy to Railway Staging
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      run: |
+        railway environment staging
+        railway service e24b40e8-1586-4fe9-9dea-35661be40df7
+        railway up --detach
+        
+    - name: Wait for deployment
+      run: sleep 30
+      
+    - name: Verify staging deployment
+      run: |
+        echo "🚀 Testing staging deployment..."
+        curl -f https://urban-vampi-staging.up.railway.app/ || exit 1
+        curl -f https://urban-vampi-staging.up.railway.app/deployment-test || exit 1
+        echo "✅ Staging deployment successful!"
+        
+    - name: Deployment Summary
+      run: |
+        echo "## 🚀 Staging Deployment Complete" >> $GITHUB_STEP_SUMMARY
+        echo "- **Environment**: Staging" >> $GITHUB_STEP_SUMMARY
+        echo "- **Branch**: develop" >> $GITHUB_STEP_SUMMARY
+        echo "- **URL**: https://urban-vampi-staging.up.railway.app" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY 

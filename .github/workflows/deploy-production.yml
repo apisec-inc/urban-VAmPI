@@ -1,0 +1,52 @@
+name: Deploy to Railway Production
+
+on:
+  push:
+    branches: [ master, main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:
+
+jobs:
+  deploy-production:
+    name: Deploy to Production Environment
+    runs-on: ubuntu-latest
+    environment: production
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Install Railway CLI
+      run: |
+        curl -fsSL https://railway.app/install.sh | sh
+        echo "$HOME/.railway/bin" >> $GITHUB_PATH
+        
+    - name: Verify Railway CLI installation
+      run: railway --version
+      
+    - name: Deploy to Railway Production
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      run: |
+        railway environment production
+        railway service e24b40e8-1586-4fe9-9dea-35661be40df7
+        railway up --detach
+        
+    - name: Wait for deployment
+      run: sleep 45
+      
+    - name: Verify production deployment
+      run: |
+        echo "🚀 Testing production deployment..."
+        curl -f https://urban-vampi-production.up.railway.app/ || exit 1
+        curl -f https://urban-vampi-production.up.railway.app/deployment-test || exit 1
+        echo "✅ Production deployment successful!"
+        
+    - name: Deployment Summary
+      run: |
+        echo "## 🏭 Production Deployment Complete" >> $GITHUB_STEP_SUMMARY
+        echo "- **Environment**: Production" >> $GITHUB_STEP_SUMMARY
+        echo "- **Branch**: master" >> $GITHUB_STEP_SUMMARY
+        echo "- **URL**: https://urban-vampi-production.up.railway.app" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
+        echo "- **Timestamp**: $(date -u)" >> $GITHUB_STEP_SUMMARY 

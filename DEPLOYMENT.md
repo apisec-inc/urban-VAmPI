@@ -1,29 +1,62 @@
 # VAmPI Deployment Guide
 
-## Git Workflow & Manual Deploy Strategy
+## Git Workflow & Deployment Strategy
 
-This document outlines the Git workflow and **manual** Railway deployment configuration for the VAmPI (Vulnerable API) application.
+This document outlines the Git workflow and Railway deployment configuration for the VAmPI (Vulnerable API) application.
+
+**Available Deployment Methods:**
+1. **🤖 Automated Deployment** via GitHub Actions + Railway CLI (recommended)
+2. **🔧 Manual Deployment** via Railway CLI (fallback)
 
 **Note**: Due to corporate GitHub restrictions (we would need to install Railway 
-app in apisec-inc), auto-deploy webhooks are not available. We use a **manual deployment workflow** with proper branch management.
+app in apisec-inc), auto-deploy webhooks are not available. We use **GitHub Actions** with Railway CLI for automation while maintaining manual deployment capability.
 
 ## Branch Strategy
 
 ### Branch-Environment Mapping
 
-| Branch Pattern | Environment | Deploy Method | Purpose |
-|---------------|-------------|---------------|---------|
-| `master` | Production | 🔧 **Manual** | Stable production releases |
-| `develop` | Staging | 🔧 **Manual** | Integration testing and QA |
-| `release/**` | Production | 🔧 **Manual** | Release candidates and hotfixes |
-| `feature/**` | None | ❌ No deploy | Feature development (local testing only) |
+| Branch Pattern | Environment | Automated Deploy | Manual Deploy | Purpose |
+|---------------|-------------|------------------|---------------|---------|
+| `master` | Production | ✅ **GitHub Actions** | ✅ Railway CLI | Stable production releases |
+| `develop` | Staging | ✅ **GitHub Actions** | ✅ Railway CLI | Integration testing and QA |
+| `release/**` | Production | ✅ **GitHub Actions** | ✅ Railway CLI | Release candidates and hotfixes |
+| `feature/**` | None | ❌ No deploy | ✅ Manual only | Feature development (local testing only) |
 
 ### Environment URLs
 
 - **Production**: https://urban-vampi-production.up.railway.app
 - **Staging**: https://urban-vampi-staging.up.railway.app
 
-## Manual Deployment Process
+## 🤖 Automated Deployment (GitHub Actions)
+
+### How It Works
+- **GitHub Actions** automatically trigger on push to `develop` or `master`
+- **Railway CLI** is installed in the GitHub runner
+- **RAILWAY_TOKEN** secret provides authentication
+- **Automatic testing** verifies deployment success
+
+### Setup Requirements
+
+1. **Add Railway Token to GitHub Secrets**:
+   ```bash
+   # Get your Railway token
+   railway login
+   railway whoami  # Verify login
+   
+   # Add to GitHub repository secrets as: RAILWAY_TOKEN
+   ```
+
+2. **GitHub Secrets Configuration**:
+   - Go to: `GitHub Repository → Settings → Secrets and variables → Actions`
+   - Add secret: `RAILWAY_TOKEN` = `your-railway-token`
+
+### Automated Triggers
+
+- **Push to `develop`** → Deploys to **staging** automatically
+- **Push to `master`** → Deploys to **production** automatically  
+- **Manual trigger** → Available via GitHub Actions UI
+
+## 🔧 Manual Deployment (Railway CLI)
 
 ### Deploy to Staging (from develop branch)
 
@@ -35,6 +68,9 @@ git pull origin develop
 # 2. Deploy to staging
 railway environment staging
 railway up
+# check that staging endpoints are live
+curl -s https://urban-vampi-staging.up.railway.app/ | head -1 && \
+curl -s https://urban-vampi-staging.up.railway.app/deployment-test
 ```
 
 ### Deploy to Production (from master branch)
@@ -47,6 +83,9 @@ git pull origin master
 # 2. Deploy to production
 railway environment production
 railway up
+# check that production endpoints are live
+curl -s https://urban-vampi-production.up.railway.app/ | head -1
+curl -s https://urban-vampi-production.up.railway.app/deployment-test
 ```
 
 ## Development Workflow (Updated)
