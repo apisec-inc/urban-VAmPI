@@ -273,3 +273,20 @@ vulnerable=0  # Disable vulnerable mode for security
 - **Deploy fails**: Check `railway.json` configuration and `start_production.py`
 
 **Note**: Due to corporate GitHub restrictions, auto-deploy webhooks are not available. All deployments are manual via Railway CLI. See `DEPLOYMENT.md` for detailed Git workflow instructions.
+
+## 🤖 Automated Deployment Option
+
+For **automated deployments** using GitHub Actions + Railway CLI (corporate-friendly alternative to Railway webhooks):
+
+👉 **See [GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md)** for complete setup instructions
+
+**Benefits:**
+- ✅ **Push-to-deploy** workflow (develop → staging, master → production)
+- ✅ **No Railway GitHub app** required (bypasses corporate restrictions)
+- ✅ **Manual deployment fallback** always available
+- ✅ **Built-in health checks** and deployment verification
+
+**Quick Setup:**
+1. Add `RAILWAY_TOKEN` to GitHub repository secrets
+2. GitHub Actions workflows are already configured
+3. Push to `develop` or `master` to trigger automated deployment

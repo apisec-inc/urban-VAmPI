@@ -84,7 +84,7 @@ git pull origin master
 railway environment production
 railway up
 # check that production endpoints are live
-curl -s https://urban-vampi-production.up.railway.app/ | head -1
+curl -s https://urban-vampi-production.up.railway.app/ | head -1 && \
 curl -s https://urban-vampi-production.up.railway.app/deployment-test
 ```
 
