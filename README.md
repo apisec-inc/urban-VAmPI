@@ -210,7 +210,7 @@ git pull origin develop
 railway environment staging
 railway up
 # check that staging endpoints are live
-curl -s https://urban-vampi-staging.up.railway.app/ | head -1
+curl -s https://urban-vampi-staging.up.railway.app/ | head -1 && \
 curl -s https://urban-vampi-staging.up.railway.app/deployment-test
 ```
 
@@ -220,6 +220,9 @@ git checkout master
 git pull origin master
 railway environment production
 railway up
+# check that production endpoints are live
+curl -s https://urban-vampi-production.up.railway.app/ | head -1
+curl -s https://urban-vampi-production.up.railway.app/deployment-test
 ```
 
 ### Railway Environment Management
