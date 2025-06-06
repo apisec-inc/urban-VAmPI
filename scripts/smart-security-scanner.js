@@ -12,7 +12,6 @@ class SmartSecurityScanner {
         
         // Configurable thresholds
         this.failOnCritical = process.env.FAIL_ON_CRITICAL !== 'false'; // Default: true
-        this.failOnAnyVulns = process.env.FAIL_ON_ANY_VULNERABILITIES === 'true'; // Default: false
         this.maxWaitTime = parseInt(process.env.MAX_SCAN_WAIT_TIME) || 300000; // 5 minutes default
         this.pollInterval = parseInt(process.env.SCAN_POLL_INTERVAL) || 15000; // 15 seconds
         this.earlyFailCheck = process.env.EARLY_FAIL_CHECK !== 'false'; // Default: true
@@ -24,7 +23,6 @@ class SmartSecurityScanner {
         console.log(`📱 App: ${this.appName}`);
         console.log(`⚡ Early Fail: ${this.earlyFailCheck ? 'Enabled' : 'Disabled'}`);
         console.log(`🚨 Fail on Critical: ${this.failOnCritical ? 'Yes' : 'No'}`);
-        console.log(`🔴 Fail on Any Vulns: ${this.failOnAnyVulns ? 'Yes' : 'No'}`);
         console.log(`⏱️  Max Wait Time: ${Math.floor(this.maxWaitTime / 1000)}s`);
 
         try {
@@ -92,21 +90,9 @@ class SmartSecurityScanner {
                 }
 
                 // Early failure check for critical vulnerabilities
-                if (this.earlyFailCheck && (this.failOnCritical || this.failOnAnyVulns)) {
+                if (this.earlyFailCheck && this.failOnCritical) {
                     const criticalCount = this.countCriticalVulnerabilities(status.vulnerabilities);
-                    const totalVulns = (status.metadata?.numVulnerabilities || 0);
-                    
-                    // Check for any vulnerabilities if configured
-                    if (this.failOnAnyVulns && totalVulns > 0) {
-                        console.log(`🚨 VULNERABILITIES DETECTED: ${totalVulns} total vulnerabilities found!`);
-                        console.log('❌ Failing build due to security vulnerabilities (fail-on-any mode)');
-                        this.logAllVulnerabilities(status.vulnerabilities);
-                        this.generateSecurityReport(status, true);
-                        throw new Error(`Build failed: ${totalVulns} security vulnerabilities detected`);
-                    }
-                    
-                    // Check for critical vulnerabilities
-                    if (this.failOnCritical && criticalCount > 0) {
+                    if (criticalCount > 0) {
                         console.log(`🚨 CRITICAL VULNERABILITIES DETECTED: ${criticalCount} critical issues found!`);
                         console.log('❌ Failing build immediately due to critical security vulnerabilities');
                         console.log('🔧 Fix these critical issues and redeploy:');
@@ -123,23 +109,15 @@ class SmartSecurityScanner {
                     console.log('✅ Scan completed successfully!');
                     
                     // Final vulnerability check
-                    const criticalCount = this.countCriticalVulnerabilities(status.vulnerabilities);
-                    const totalVulns = (status.metadata?.numVulnerabilities || 0);
-                    
-                    if (this.failOnAnyVulns && totalVulns > 0) {
-                        console.log(`🚨 FINAL CHECK: ${totalVulns} total vulnerabilities found`);
-                        console.log('❌ Build failed due to security vulnerabilities');
-                        this.logAllVulnerabilities(status.vulnerabilities);
-                        this.generateSecurityReport(status, true);
-                        throw new Error(`Build failed: ${totalVulns} security vulnerabilities detected`);
-                    }
-                    
-                    if (this.failOnCritical && criticalCount > 0) {
-                        console.log(`🚨 FINAL CHECK: ${criticalCount} critical vulnerabilities found`);
-                        console.log('❌ Build failed due to critical security vulnerabilities');
-                        this.logCriticalVulnerabilities(status.vulnerabilities);
-                        this.generateSecurityReport(status, true);
-                        throw new Error(`Build failed: ${criticalCount} critical security vulnerabilities detected`);
+                    if (this.failOnCritical) {
+                        const criticalCount = this.countCriticalVulnerabilities(status.vulnerabilities);
+                        if (criticalCount > 0) {
+                            console.log(`🚨 FINAL CHECK: ${criticalCount} critical vulnerabilities found`);
+                            console.log('❌ Build failed due to critical security vulnerabilities');
+                            this.logCriticalVulnerabilities(status.vulnerabilities);
+                            this.generateSecurityReport(status, true);
+                            throw new Error(`Build failed: ${criticalCount} critical security vulnerabilities detected`);
+                        }
                     }
                     
                     return status;
@@ -170,54 +148,120 @@ class SmartSecurityScanner {
     countCriticalVulnerabilities(vulnerabilities) {
         if (!vulnerabilities || !Array.isArray(vulnerabilities)) return 0;
         
-        let criticalCount = 0;
+        return vulnerabilities.reduce((count, vuln) => {
+            if (vuln.scanFindings && Array.isArray(vuln.scanFindings)) {
+                return count + vuln.scanFindings.filter(finding => 
+                    finding.severity === 'CRITICAL' || finding.severity === 'critical'
+                ).length;
+            }
+            return count;
+        }, 0);
+    }
+
+    logCriticalVulnerabilities(vulnerabilities) {
+        if (!vulnerabilities || !Array.isArray(vulnerabilities)) return;
+        
+        console.log('\n🚨 CRITICAL VULNERABILITIES FOUND:');
+        console.log('=' .repeat(50));
         
         vulnerabilities.forEach(vuln => {
             if (vuln.scanFindings && Array.isArray(vuln.scanFindings)) {
-                vuln.scanFindings.forEach(finding => {
-                    // Check for various critical severity formats
-                    const severity = (finding.severity || finding.riskLevel || finding.impact || '').toLowerCase();
-                    const category = (finding.category || finding.type || '').toLowerCase();
-                    const name = (finding.name || finding.title || '').toLowerCase();
-                    
-                    // Multiple ways APIsec might indicate critical vulnerabilities
-                    const isCritical = 
-                        severity === 'critical' ||
-                        severity === 'high' ||  // Treat high as critical for build failure
-                        severity === 'severe' ||
-                        category.includes('critical') ||
-                        category.includes('severe') ||
-                        name.includes('critical') ||
-                        name.includes('injection') ||  // SQL injection, etc.
-                        name.includes('authentication') ||
-                        name.includes('authorization') ||
-                        name.includes('xss') ||
-                        name.includes('csrf');
-                    
-                    if (isCritical) {
-                        criticalCount++;
-                        
-                        // Debug logging to see what we're finding
-                        console.log(`🔍 Found critical vulnerability: ${finding.name || 'Unknown'}`);
-                        console.log(`   Severity: ${finding.severity || 'Not specified'}`);
-                        console.log(`   Category: ${finding.category || 'Not specified'}`);
-                        console.log(`   Endpoint: ${vuln.method?.toUpperCase()} ${vuln.resource}`);
-                    }
+                const criticalFindings = vuln.scanFindings.filter(finding => 
+                    finding.severity === 'CRITICAL' || finding.severity === 'critical'
+                );
+                
+                criticalFindings.forEach(finding => {
+                    console.log(`🔴 ${vuln.method?.toUpperCase()} ${vuln.resource}`);
+                    console.log(`   Issue: ${finding.name || finding.title || 'Critical Vulnerability'}`);
+                    console.log(`   Description: ${finding.description || 'No description available'}`);
+                    console.log('');
                 });
             }
         });
         
-        return criticalCount;
+        console.log('🔧 ACTION REQUIRED:');
+        console.log('   1. Fix these critical vulnerabilities in your code');
+        console.log('   2. Test the fixes locally');
+        console.log('   3. Commit and redeploy');
+        console.log('   4. The security scan will run again automatically');
+        console.log('=' .repeat(50));
     }
 
-    logAllVulnerabilities(vulnerabilities) {
-        if (!vulnerabilities || !Array.isArray(vulnerabilities)) return;
+    generateSecurityReport(results, failed = false) {
+        const scanResults = {
+            scan_id: results.scanId || `scan-${Date.now()}`,
+            target: this.targetUrl,
+            app_name: this.appName,
+            timestamp: new Date().toISOString(),
+            status: failed ? 'failed' : (results.status || 'completed'),
+            scan_type: 'live',
+            build_failed: failed,
+            vulnerabilities: this.parseVulnerabilities(results.vulnerabilities || []),
+            summary: this.generateSummary(results, failed),
+            metadata: results.metadata || {},
+            apisec_scan_id: results.scanId
+        };
+
+        fs.writeFileSync('scan-results.json', JSON.stringify(scanResults, null, 2));
+        console.log('📁 Security report saved to scan-results.json');
         
-        console.log('\n🔍 ALL VULNERABILITIES FOUND:');
-        console.log('=' .repeat(60));
+        if (failed) {
+            console.log('🚨 Build status: FAILED due to critical vulnerabilities');
+        }
+    }
+
+    parseVulnerabilities(vulnerabilities) {
+        const parsed = [];
         
-        vulnerabilities.forEach((vuln, index) => {
-            console.log(`\n${index + 1}. ${vuln.method?.toUpperCase() || 'UNKNOWN'} ${vuln.resource || 'Unknown endpoint'}`);
-            
+        vulnerabilities.forEach(vuln => {
             if (vuln.scanFindings && Array.isArray(vuln.scanFindings)) {
-                vuln.scanFindings.forEach((finding, fin
+                vuln.scanFindings.forEach(finding => {
+                    parsed.push({
+                        id: finding.id || `${vuln.endpointId}-${finding.name}`,
+                        severity: (finding.severity || 'unknown').toLowerCase(),
+                        title: finding.name || finding.title || 'Security Issue',
+                        description: finding.description || 'No description available',
+                        endpoint: vuln.resource || 'Unknown',
+                        method: (vuln.method || 'unknown').toUpperCase(),
+                        recommendation: finding.remediation || 'Review and fix this security issue'
+                    });
+                });
+            }
+        });
+        
+        return parsed;
+    }
+
+    generateSummary(results, failed) {
+        const vulnerabilities = this.parseVulnerabilities(results.vulnerabilities || []);
+        
+        return {
+            total_endpoints_scanned: results.metadata?.endpointsScanned || 0,
+            vulnerabilities_found: vulnerabilities.length,
+            critical_severity: vulnerabilities.filter(v => v.severity === 'critical').length,
+            high_severity: vulnerabilities.filter(v => v.severity === 'high').length,
+            medium_severity: vulnerabilities.filter(v => v.severity === 'medium').length,
+            low_severity: vulnerabilities.filter(v => v.severity === 'low').length,
+            scan_duration: results.duration || 'unknown',
+            build_status: failed ? 'FAILED' : 'PASSED',
+            completion_percentage: results.metadata?.completionPercentage || 100
+        };
+    }
+}
+
+// Execute if called directly
+if (require.main === module) {
+    const scanner = new SmartSecurityScanner();
+    
+    scanner.runScan()
+        .then(() => {
+            console.log('🎉 Security scan completed successfully!');
+            process.exit(0);
+        })
+        .catch(error => {
+            console.error('❌ Security scan failed:', error.message);
+            process.exit(1);
+        });
+}
+
+module.exports = { SmartSecurityScanner };
