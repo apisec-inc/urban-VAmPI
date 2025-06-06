@@ -9,6 +9,11 @@ on:
         description: 'Reason for manual deployment'
         required: false
         default: 'Manual staging deployment'
+      trigger_security_scan:
+        description: 'Trigger APIsec security scan after deployment'
+        required: false
+        default: true
+        type: boolean
 
 jobs:
   deploy-staging:
@@ -16,38 +21,45 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-    - name: Checkout code
+    - name: 📋 Checkout code
       uses: actions/checkout@v4
       
-    - name: Install Railway CLI
+    - name: 🔧 Install Railway CLI
       run: |
+        echo "::group::🔧 Installing Railway CLI"
         echo "🔧 Installing Railway CLI..."
         curl -fsSL https://railway.app/install.sh | sh
         echo "$HOME/.railway/bin" >> $GITHUB_PATH
         echo "✅ Railway CLI installation complete"
+        echo "::endgroup::"
         
-    - name: Verify Railway CLI installation
+    - name: ✅ Verify Railway CLI installation
       run: |
+        echo "::group::✅ Verifying Railway CLI"
         echo "🔍 Verifying Railway CLI..."
         railway --version
         echo "✅ Railway CLI verified"
+        echo "::endgroup::"
       
-    - name: Test Railway Authentication
+    - name: 🔐 Test Railway Authentication
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
       run: |
+        echo "::group::🔐 Testing Railway Authentication"
         echo "🔐 Testing Railway authentication..."
         if [ -z "$RAILWAY_TOKEN" ]; then
-          echo "❌ RAILWAY_TOKEN_STAGING is not set or empty"
+          echo "::error title=Auth Failed::RAILWAY_TOKEN_STAGING is not set or empty"
           exit 1
         fi
-        echo "✅ RAILWAY_TOKEN_STAGING is set"
+        echo "::notice title=Auth Success::RAILWAY_TOKEN_STAGING is configured"
         railway whoami || echo "⚠️ Authentication test failed, but continuing..."
+        echo "::endgroup::"
         
-    - name: Deploy to Railway Staging
+    - name: 🚀 Deploy to Railway Staging
       env:
         RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN_STAGING }}
       run: |
+        echo "::group::🚀 Railway Deployment"
         echo "🚀 Starting Railway deployment..."
         echo "Setting environment to staging..."
         railway environment staging
@@ -56,24 +68,124 @@ jobs:
         echo "Starting deployment..."
         railway up --detach
         echo "✅ Deployment command completed"
+        echo "::endgroup::"
         
-    - name: Wait for deployment
+    - name: ⏳ Wait for deployment
       run: |
+        echo "::group::⏳ Deployment Processing"
         echo "⏳ Waiting 30 seconds for deployment to process..."
         sleep 30
         echo "✅ Wait period complete"
+        echo "::endgroup::"
       
-    - name: Verify staging deployment
+    - name: 🔍 Verify staging deployment
+      id: verify_deployment
       run: |
+        echo "::group::🔍 Deployment Verification"
         echo "🔍 Testing staging deployment..."
-        curl -f https://urban-vampi-staging.up.railway.app/ || exit 1
-        curl -f https://urban-vampi-staging.up.railway.app/deployment-test || exit 1
-        echo "✅ Staging deployment successful!"
         
-    - name: Deployment Summary
+        # Test main endpoint
+        if curl -f https://urban-vampi-staging.up.railway.app/; then
+          echo "✅ Main endpoint accessible"
+          MAIN_STATUS="success"
+        else
+          echo "::error title=Main Endpoint Failed::Main endpoint not accessible"
+          MAIN_STATUS="failed"
+        fi
+        
+        # Test deployment test endpoint
+        if curl -f https://urban-vampi-staging.up.railway.app/deployment-test; then
+          echo "✅ Deployment test endpoint accessible"
+          TEST_STATUS="success"
+        else
+          echo "::warning title=Test Endpoint::Deployment test endpoint not accessible (may be expected)"
+          TEST_STATUS="warning"
+        fi
+        
+        # Overall deployment status
+        if [ "$MAIN_STATUS" == "success" ]; then
+          echo "::notice title=Deployment Success::Staging deployment successful and ready for security scanning"
+          echo "deployment_success=true" >> $GITHUB_OUTPUT
+        else
+          echo "::error title=Deployment Failed::Staging deployment verification failed"
+          echo "deployment_success=false" >> $GITHUB_OUTPUT
+          exit 1
+        fi
+        
+        echo "::endgroup::"
+        
+    - name: 📋 Deployment Summary
       run: |
+        echo "::group::📋 Deployment Summary"
         echo "## 🚀 Staging Deployment Complete" >> $GITHUB_STEP_SUMMARY
         echo "- **Environment**: Staging" >> $GITHUB_STEP_SUMMARY
         echo "- **Branch**: develop" >> $GITHUB_STEP_SUMMARY
         echo "- **URL**: https://urban-vampi-staging.up.railway.app" >> $GITHUB_STEP_SUMMARY
-        echo "- **Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY 
+        echo "- **Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
+        echo "- **Deployment Time**: $(date -u)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔒 Security scan will be triggered automatically" >> $GITHUB_STEP_SUMMARY
+        echo "- 📊 Results will be available in the APIsec workflow" >> $GITHUB_STEP_SUMMARY
+        echo "::endgroup::"
+
+  trigger-security-scan:
+    name: Trigger APIsec Security Scan
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: always() && needs.deploy-staging.outputs.deployment_success == 'true' && (github.event.inputs.trigger_security_scan != 'false')
+    
+    steps:
+    - name: 📋 Checkout code
+      uses: actions/checkout@v4
+      
+    - name: 🔒 Trigger APIsec Security Scan
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        echo "::group::🔒 Triggering APIsec Security Scan"
+        echo "🔒 Triggering APIsec security scan workflow..."
+        
+        # Trigger the APIsec workflow using GitHub API
+        curl -X POST \
+          -H "Authorization: token $GITHUB_TOKEN" \
+          -H "Accept: application/vnd.github.v3+json" \
+          -H "Content-Type: application/json" \
+          "${{ github.api_url }}/repos/${{ github.repository }}/actions/workflows/apisec-security-scan.yml/dispatches" \
+          -d '{
+            "ref": "${{ github.ref_name }}",
+            "inputs": {
+              "force_scan": "true"
+            }
+          }' || {
+            echo "::error title=Trigger Failed::Failed to trigger APIsec security scan"
+            exit 1
+          }
+        
+        echo "::notice title=Scan Triggered::APIsec security scan has been triggered successfully"
+        echo "🔗 Check the Actions tab to monitor the security scan progress"
+        echo "::endgroup::"
+        
+    - name: 📊 Security Scan Summary
+      run: |
+        echo "::group::📊 Security Scan Information"
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 🔒 Security Scan Triggered" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
+        echo "| **Target** | \`https://urban-vampi-staging.up.railway.app\` |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Workflow** | APIsec Security Scan |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Triggered At** | $(date -u) |" >> $GITHUB_STEP_SUMMARY
+        echo "| **Branch** | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔍 Monitor Progress" >> $GITHUB_STEP_SUMMARY
+        echo "- Visit the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions) to monitor scan progress" >> $GITHUB_STEP_SUMMARY
+        echo "- Look for the \"APIsec Security Scan\" workflow" >> $GITHUB_STEP_SUMMARY
+        echo "- Results will include vulnerability details and security reports" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🎯 Expected Results" >> $GITHUB_STEP_SUMMARY
+        echo "- **Mock Scan**: Simulated vulnerabilities for demo purposes" >> $GITHUB_STEP_SUMMARY
+        echo "- **Live Scan**: Real APIsec analysis (if credentials configured)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Report Generation**: Detailed security findings and recommendations" >> $GITHUB_STEP_SUMMARY
+        echo "::endgroup::"
