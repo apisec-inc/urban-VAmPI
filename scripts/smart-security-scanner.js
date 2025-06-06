@@ -1,177 +1,223 @@
-name: APIsec Security Scan
+#!/usr/bin/env node
 
-on:
-  push:
-    branches: [ develop ]
-  pull_request:
-    branches: [ develop ]
-  workflow_dispatch:
-    inputs:
-      force_scan:
-        description: 'Force APIsec scan'
-        required: false
-        default: true
-        type: boolean
+require('dotenv').config();
+const fs = require('fs');
+const { APIsecCloudClient } = require('./apisec-client');
 
-env:
-  VAMPI_URL: https://urban-vampi-staging.up.railway.app
-  APISEC_APP_NAME: vampi-demo
-  FALLBACK_TO_MOCK: true
-
-jobs:
-  apisec-security-scan:
-    runs-on: ubuntu-latest
-    name: APIsec Security Scan
-    
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
+class SmartSecurityScanner {
+    constructor() {
+        this.client = new APIsecCloudClient();
+        this.targetUrl = process.env.VAMPI_URL || process.env.MEDUSA_URL;
+        this.appName = process.env.APISEC_APP_NAME || 'vampi-demo';
         
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          
-      - name: Install Dependencies
-        run: |
-          echo "::group::📦 Installing APIsec scanning dependencies"
-          echo "📦 Installing APIsec scanning dependencies..."
-          npm install axios dotenv
-          echo "::endgroup::"
-          
-      - name: Load Environment Variables
-        run: |
-          echo "::group::🔧 Loading Environment Configuration"
-          if [ -f .env ]; then
-            echo "📄 Loading environment variables from .env file..."
-            set -a
-            source .env
-            set +a
-            cat .env | grep -v '^#' | grep '=' >> $GITHUB_ENV
-            echo "✅ Environment variables loaded"
-          else
-            echo "⚠️  No .env file found - using workflow defaults"
-          fi
-          echo "::endgroup::"
-          
-      - name: Validate Environment
-        run: |
-          echo "::group::🔍 Validating APIsec Configuration"
-          echo "🔍 Validating APIsec configuration..."
-          echo "Target URL: ${VAMPI_URL}"
-          echo "App Name: ${APISEC_APP_NAME}"
-          
-          # Force mock mode until APIsec client is implemented
-          echo "::warning title=Mock Mode::Using mock scanner until APIsec client is implemented"
-          echo "::endgroup::"
-          
-      - name: Test API Availability
-        run: |
-          echo "::group::🌐 Testing Vampi API Availability"
-          echo "🔍 Testing Vampi API availability..."
-          curl -f ${VAMPI_URL}/health || curl -f ${VAMPI_URL}/ || {
-            echo "::error title=API Unavailable::Vampi API is not accessible at ${VAMPI_URL}"
-            exit 1
-          }
-          echo "::notice title=API Status::Vampi API is accessible and ready for scanning"
-          echo "::endgroup::"
-          
-      - name: Run APIsec Security Scan
-        env:
-          APISEC_API_KEY: ${{ secrets.APISEC_API_KEY }}
-          APISEC_APPLICATION_ID: ${{ secrets.APISEC_APPLICATION_ID }}
-          APISEC_INSTANCE_ID: ${{ secrets.APISEC_INSTANCE_ID }}
-          MEDUSA_URL: ${{ env.VAMPI_URL }}
-          # Smart scanner configuration
-          FAIL_ON_CRITICAL: true
-          FAIL_ON_ANY_VULNERABILITIES: true
-          MAX_SCAN_WAIT_TIME: 300000
-          SCAN_POLL_INTERVAL: 15000
-          EARLY_FAIL_CHECK: true
-        run: |
-          echo "::group::🔒 APIsec Security Scan Execution"
-          echo "🔒 Starting smart APIsec security scan..."
-          
-          if [ -n "${{ secrets.APISEC_API_KEY }}" ]; then
-            echo "::notice title=Smart Scan::Running smart APIsec scan with early failure detection"
-            node scripts/smart-security-scanner.js
-          else
-            echo "::notice title=Mock Scan::Running mock APIsec scan (credentials not available)"
-            node scripts/apisec-mock-scan.js
-          fi
-          echo "::endgroup::"
-          
-      - name: Parse Scan Results
-        run: |
-          echo "::group::📊 Processing Security Scan Results"
-          echo "📊 Processing scan results..."
-          if [ -f scan-results.json ]; then
-            echo "::notice title=Results Found::Processing APIsec scan results"
-            # Create basic parser if parse-scan-results.js doesn't exist
-            if [ ! -f scripts/parse-scan-results.js ]; then
-              echo "const results = require('../scan-results.json'); console.log('Parsed', results.summary.vulnerabilities_found, 'vulnerabilities');" > scripts/parse-scan-results.js
-            fi
-            node scripts/parse-scan-results.js
-          else
-            echo "::error title=No Results::No scan results file found"
-            exit 1
-          fi
-          echo "::endgroup::"
-          
-      - name: Generate Security Report
-        run: |
-          echo "::group::📋 Generating Security Report"
-          echo "# 🔒 Vampi APIsec Security Report" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Target:** ${VAMPI_URL}" >> $GITHUB_STEP_SUMMARY
-          echo "**Branch:** develop" >> $GITHUB_STEP_SUMMARY
-          echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
-          echo "**Mode:** Mock Scan (APIsec client needs implementation)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          
-          if [ -f scan-results.json ]; then
-            echo "## 📊 Scan Results" >> $GITHUB_STEP_SUMMARY
+        // Configurable thresholds
+        this.failOnCritical = process.env.FAIL_ON_CRITICAL !== 'false'; // Default: true
+        this.failOnAnyVulns = process.env.FAIL_ON_ANY_VULNERABILITIES === 'true'; // Default: false
+        this.maxWaitTime = parseInt(process.env.MAX_SCAN_WAIT_TIME) || 300000; // 5 minutes default
+        this.pollInterval = parseInt(process.env.SCAN_POLL_INTERVAL) || 15000; // 15 seconds
+        this.earlyFailCheck = process.env.EARLY_FAIL_CHECK !== 'false'; // Default: true
+    }
+
+    async runScan() {
+        console.log('🔒 Starting Smart APIsec Security Scan...');
+        console.log(`🎯 Target: ${this.targetUrl}`);
+        console.log(`📱 App: ${this.appName}`);
+        console.log(`⚡ Early Fail: ${this.earlyFailCheck ? 'Enabled' : 'Disabled'}`);
+        console.log(`🚨 Fail on Critical: ${this.failOnCritical ? 'Yes' : 'No'}`);
+        console.log(`🔴 Fail on Any Vulns: ${this.failOnAnyVulns ? 'Yes' : 'No'}`);
+        console.log(`⏱️  Max Wait Time: ${Math.floor(this.maxWaitTime / 1000)}s`);
+
+        try {
+            // Test connection
+            console.log('🔍 Testing APIsec connection...');
+            const isConnected = await this.client.testConnection();
             
-            CRITICAL=$(node -e "console.log(require('./scan-results.json').summary.critical_severity || 0)")
-            HIGH=$(node -e "console.log(require('./scan-results.json').summary.high_severity || 0)")
-            MEDIUM=$(node -e "console.log(require('./scan-results.json').summary.medium_severity || 0)")
-            LOW=$(node -e "console.log(require('./scan-results.json').summary.low_severity || 0)")
+            if (!isConnected) {
+                throw new Error('Failed to connect to APIsec API');
+            }
             
-            echo "| Severity | Count | Status |" >> $GITHUB_STEP_SUMMARY
-            echo "|----------|-------|--------|" >> $GITHUB_STEP_SUMMARY
-            echo "| 🔴 Critical | $CRITICAL | $([ $CRITICAL -eq 0 ] && echo "✅ Clean" || echo "🚨 Action Required") |" >> $GITHUB_STEP_SUMMARY
-            echo "| 🟠 High | $HIGH | $([ $HIGH -eq 0 ] && echo "✅ Clean" || echo "⚠️ Review Needed") |" >> $GITHUB_STEP_SUMMARY
-            echo "| 🟡 Medium | $MEDIUM | $([ $MEDIUM -eq 0 ] && echo "✅ Clean" || echo "📋 Monitor") |" >> $GITHUB_STEP_SUMMARY
-            echo "| 🔵 Low | $LOW | $([ $LOW -eq 0 ] && echo "✅ Clean" || echo "ℹ️ Informational") |" >> $GITHUB_STEP_SUMMARY
+            console.log('✅ APIsec connection successful');
+
+            // Trigger scan
+            console.log('🚀 Triggering security scan...');
+            const scanResult = await this.client.triggerScan(
+                process.env.APISEC_APPLICATION_ID,
+                process.env.APISEC_INSTANCE_ID,
+                {
+                    target: this.targetUrl
+                }
+            );
+
+            console.log(`✅ Scan triggered successfully! ID: ${scanResult.scanId}`);
+
+            // Smart waiting with early failure detection
+            console.log('⏳ Monitoring scan progress...');
+            const finalResults = await this.smartWaitForCompletion(scanResult.scanId);
+
+            // Generate final report
+            this.generateSecurityReport(finalResults);
             
-            if [ "$CRITICAL" -gt 0 ]; then
-              echo "" >> $GITHUB_STEP_SUMMARY
-              echo "🚨 **Critical vulnerabilities found!**" >> $GITHUB_STEP_SUMMARY
-              echo "::error title=Critical Vulnerabilities::$CRITICAL critical vulnerabilities require immediate attention"
-            fi
-          fi
-          echo "::endgroup::"
-          
-      - name: Check Critical Vulnerabilities
-        run: |
-          echo "::group::🔍 Critical Vulnerability Assessment"
-          if [ -f scan-results.json ]; then
-            CRITICAL_COUNT=$(node -e "console.log(require('./scan-results.json').summary.critical_severity || 0)")
+            console.log('✅ Security scan completed successfully!');
+            return finalResults;
+
+        } catch (error) {
+            console.error('❌ Security scan failed:', error.message);
+            throw error;
+        }
+    }
+
+    async smartWaitForCompletion(scanId) {
+        const startTime = Date.now();
+        let consecutiveErrors = 0;
+        const maxConsecutiveErrors = 3;
+
+        while (Date.now() - startTime < this.maxWaitTime) {
+            try {
+                const status = await this.client.getScanStatus(
+                    process.env.APISEC_APPLICATION_ID,
+                    process.env.APISEC_INSTANCE_ID,
+                    scanId
+                );
+
+                consecutiveErrors = 0; // Reset error counter on success
+
+                console.log(`📊 Scan Progress: ${status.progress || 'Unknown'}% - Status: ${status.status}`);
+                
+                // Log metadata if available
+                if (status.metadata) {
+                    const meta = status.metadata;
+                    console.log(`   📈 Progress: ${meta.endpointsScanned || 0}/${meta.endpointsUnderTest || 0} endpoints`);
+                    console.log(`   🔍 Tests: ${meta.testsPassed || 0} passed, ${meta.testsFailed || 0} failed`);
+                    console.log(`   🚨 Vulnerabilities: ${meta.numVulnerabilities || 0}`);
+                }
+
+                // Early failure check for critical vulnerabilities
+                if (this.earlyFailCheck && (this.failOnCritical || this.failOnAnyVulns)) {
+                    const criticalCount = this.countCriticalVulnerabilities(status.vulnerabilities);
+                    const totalVulns = (status.metadata?.numVulnerabilities || 0);
+                    
+                    // Check for any vulnerabilities if configured
+                    if (this.failOnAnyVulns && totalVulns > 0) {
+                        console.log(`🚨 VULNERABILITIES DETECTED: ${totalVulns} total vulnerabilities found!`);
+                        console.log('❌ Failing build due to security vulnerabilities (fail-on-any mode)');
+                        this.logAllVulnerabilities(status.vulnerabilities);
+                        this.generateSecurityReport(status, true);
+                        throw new Error(`Build failed: ${totalVulns} security vulnerabilities detected`);
+                    }
+                    
+                    // Check for critical vulnerabilities
+                    if (this.failOnCritical && criticalCount > 0) {
+                        console.log(`🚨 CRITICAL VULNERABILITIES DETECTED: ${criticalCount} critical issues found!`);
+                        console.log('❌ Failing build immediately due to critical security vulnerabilities');
+                        console.log('🔧 Fix these critical issues and redeploy:');
+                        
+                        this.logCriticalVulnerabilities(status.vulnerabilities);
+                        this.generateSecurityReport(status, true); // Generate report with failure flag
+                        
+                        throw new Error(`Build failed: ${criticalCount} critical security vulnerabilities detected`);
+                    }
+                }
+
+                // Check if scan is complete
+                if (status.status === 'Complete' || status.status === 'complete' || status.status === 'finished') {
+                    console.log('✅ Scan completed successfully!');
+                    
+                    // Final vulnerability check
+                    const criticalCount = this.countCriticalVulnerabilities(status.vulnerabilities);
+                    const totalVulns = (status.metadata?.numVulnerabilities || 0);
+                    
+                    if (this.failOnAnyVulns && totalVulns > 0) {
+                        console.log(`🚨 FINAL CHECK: ${totalVulns} total vulnerabilities found`);
+                        console.log('❌ Build failed due to security vulnerabilities');
+                        this.logAllVulnerabilities(status.vulnerabilities);
+                        this.generateSecurityReport(status, true);
+                        throw new Error(`Build failed: ${totalVulns} security vulnerabilities detected`);
+                    }
+                    
+                    if (this.failOnCritical && criticalCount > 0) {
+                        console.log(`🚨 FINAL CHECK: ${criticalCount} critical vulnerabilities found`);
+                        console.log('❌ Build failed due to critical security vulnerabilities');
+                        this.logCriticalVulnerabilities(status.vulnerabilities);
+                        this.generateSecurityReport(status, true);
+                        throw new Error(`Build failed: ${criticalCount} critical security vulnerabilities detected`);
+                    }
+                    
+                    return status;
+                } else if (status.status === 'failed' || status.status === 'error') {
+                    throw new Error(`Scan failed with status: ${status.status}`);
+                }
+
+                // Wait before next poll
+                await new Promise(resolve => setTimeout(resolve, this.pollInterval));
+
+            } catch (error) {
+                consecutiveErrors++;
+                console.warn(`⚠️  Error checking scan status (${consecutiveErrors}/${maxConsecutiveErrors}):`, error.message);
+                
+                if (consecutiveErrors >= maxConsecutiveErrors) {
+                    console.error('❌ Too many consecutive errors - stopping scan monitoring');
+                    throw new Error(`Scan monitoring failed after ${maxConsecutiveErrors} consecutive errors`);
+                }
+                
+                // Wait before retry
+                await new Promise(resolve => setTimeout(resolve, this.pollInterval));
+            }
+        }
+
+        throw new Error(`Scan timeout - maximum wait time of ${Math.floor(this.maxWaitTime / 1000)}s exceeded`);
+    }
+
+    countCriticalVulnerabilities(vulnerabilities) {
+        if (!vulnerabilities || !Array.isArray(vulnerabilities)) return 0;
+        
+        let criticalCount = 0;
+        
+        vulnerabilities.forEach(vuln => {
+            if (vuln.scanFindings && Array.isArray(vuln.scanFindings)) {
+                vuln.scanFindings.forEach(finding => {
+                    // Check for various critical severity formats
+                    const severity = (finding.severity || finding.riskLevel || finding.impact || '').toLowerCase();
+                    const category = (finding.category || finding.type || '').toLowerCase();
+                    const name = (finding.name || finding.title || '').toLowerCase();
+                    
+                    // Multiple ways APIsec might indicate critical vulnerabilities
+                    const isCritical = 
+                        severity === 'critical' ||
+                        severity === 'high' ||  // Treat high as critical for build failure
+                        severity === 'severe' ||
+                        category.includes('critical') ||
+                        category.includes('severe') ||
+                        name.includes('critical') ||
+                        name.includes('injection') ||  // SQL injection, etc.
+                        name.includes('authentication') ||
+                        name.includes('authorization') ||
+                        name.includes('xss') ||
+                        name.includes('csrf');
+                    
+                    if (isCritical) {
+                        criticalCount++;
+                        
+                        // Debug logging to see what we're finding
+                        console.log(`🔍 Found critical vulnerability: ${finding.name || 'Unknown'}`);
+                        console.log(`   Severity: ${finding.severity || 'Not specified'}`);
+                        console.log(`   Category: ${finding.category || 'Not specified'}`);
+                        console.log(`   Endpoint: ${vuln.method?.toUpperCase()} ${vuln.resource}`);
+                    }
+                });
+            }
+        });
+        
+        return criticalCount;
+    }
+
+    logAllVulnerabilities(vulnerabilities) {
+        if (!vulnerabilities || !Array.isArray(vulnerabilities)) return;
+        
+        console.log('\n🔍 ALL VULNERABILITIES FOUND:');
+        console.log('=' .repeat(60));
+        
+        vulnerabilities.forEach((vuln, index) => {
+            console.log(`\n${index + 1}. ${vuln.method?.toUpperCase() || 'UNKNOWN'} ${vuln.resource || 'Unknown endpoint'}`);
             
-            if [ "$CRITICAL_COUNT" -gt 0 ]; then
-              echo "::error title=Build Failed::$CRITICAL_COUNT critical vulnerabilities found - failing build"
-              exit 1
-            fi
-            
-            echo "::notice title=Security Check::✅ No critical vulnerabilities found"
-          fi
-          echo "::endgroup::"
-          
-      - name: Upload Scan Results
-        uses: actions/upload-artifact@v4
-        with:
-          name: vampi-apisec-scan-results-${{ github.run_number }}
-          path: |
-            scan-results.json
-            scan-report.md
-          retention-days: 30
+            if (vuln.scanFindings && Array.isArray(vuln.scanFindings)) {
+                vuln.scanFindings.forEach((finding, fin
