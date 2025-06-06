@@ -91,7 +91,7 @@ class VampiAPIsecScanner {
                         console.log('');
                         console.log('🔧 ACTION REQUIRED:');
                         console.log('  1. Review the vulnerabilities in the scan results');
-                        console.log('  2. Fix the security issues in your code');
+                        console.log('  2. Fix the security issues in the code');
                         console.log('  3. Test the fixes locally');
                         console.log('  4. Commit and redeploy');
                         console.log('');
