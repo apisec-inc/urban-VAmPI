@@ -15,7 +15,7 @@ on:
 
 env:
   VAMPI_URL: https://urban-vampi-staging.up.railway.app
-  APISEC_APP_NAME: vampi-demo
+  APISEC_APP_NAME: urban-vampi
   FALLBACK_TO_MOCK: true
 
 jobs:
@@ -68,10 +68,10 @@ jobs:
           fi
           echo "::endgroup::"
           
-      - name: Test API Availability
+      - name: Test API Reachability
         run: |
-          echo "::group::🌐 Testing Vampi API Availability"
-          echo "🔍 Testing Vampi API availability..."
+          echo "::group::🌐 Testing Vampi API Reachability"
+          echo "🔍 Testing Vampi API reachability..."
           curl -f ${VAMPI_URL}/health || curl -f ${VAMPI_URL}/ || {
             echo "::error title=API Unavailable::Vampi API is not accessible at ${VAMPI_URL}"
             exit 1
