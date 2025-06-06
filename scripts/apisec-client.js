@@ -278,8 +278,7 @@ class APIsecCloudClient {
         }
 
         // Use the correct endpoint pattern (singular 'scan' not 'scans')
-        const endpoint = `applications/${appId}/instances/${instId}/scan/${scanId}`;
-        
+        const endpoint = `applications/${appId}/instances/${instId}/scans/${scanId}`;        
         try {
             const response = await this.makeRequest('GET', endpoint);
             
