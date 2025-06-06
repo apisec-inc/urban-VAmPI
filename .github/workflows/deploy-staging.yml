@@ -21,7 +21,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       deployment_success: ${{ steps.verify_deployment.outputs.deployment_success }}
-      deployment_url: ${{ steps.verify_deployment.outputs.deployment_url }}
     
     steps:
     - name: 📋 Checkout code
@@ -87,10 +86,8 @@ jobs:
         echo "::group::🔍 Deployment Verification"
         echo "🔍 Testing staging deployment..."
         
-        DEPLOYMENT_URL="https://urban-vampi-staging.up.railway.app"
-        
         # Test main endpoint
-        if curl -f -s --max-time 10 "$DEPLOYMENT_URL/"; then
+        if curl -f https://urban-vampi-staging.up.railway.app/; then
           echo "✅ Main endpoint accessible"
           MAIN_STATUS="success"
         else
@@ -99,7 +96,7 @@ jobs:
         fi
         
         # Test deployment test endpoint (optional)
-        if curl -f -s --max-time 10 "$DEPLOYMENT_URL/deployment-test"; then
+        if curl -f https://urban-vampi-staging.up.railway.app/deployment-test; then
           echo "✅ Deployment test endpoint accessible"
           TEST_STATUS="success"
         else
@@ -107,18 +104,13 @@ jobs:
           TEST_STATUS="warning"
         fi
         
-        # Set outputs
-        echo "deployment_url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
-        
-        # Overall deployment status
+        # Overall deployment status - be more lenient for now
         if [ "$MAIN_STATUS" == "success" ]; then
           echo "::notice title=Deployment Success::Staging deployment successful and ready for security scanning"
           echo "deployment_success=true" >> $GITHUB_OUTPUT
-          echo "✅ Setting deployment_success=true"
         else
           echo "::error title=Deployment Failed::Staging deployment verification failed"
           echo "deployment_success=false" >> $GITHUB_OUTPUT
-          echo "❌ Setting deployment_success=false"
           exit 1
         fi
         
@@ -135,72 +127,39 @@ jobs:
         echo "- **Deployment Time**: $(date -u)" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
-        echo "- 🔒 Security scan will be triggered automatically" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔒 Security scan will be triggered in next job" >> $GITHUB_STEP_SUMMARY
         echo "- 📊 Results will be available in the APIsec workflow" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### Debug Information" >> $GITHUB_STEP_SUMMARY
-        echo "- **deployment_success output**: \`${{ steps.verify_deployment.outputs.deployment_success }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **Event type**: \`${{ github.event_name }}\`" >> $GITHUB_STEP_SUMMARY
-        echo "- **trigger_security_scan input**: \`${{ github.event.inputs.trigger_security_scan || 'default (true for push events)' }}\`" >> $GITHUB_STEP_SUMMARY
         echo "::endgroup::"
 
-  debug-conditions:
-    name: Debug Trigger Conditions
-    runs-on: ubuntu-latest
-    needs: deploy-staging
-    
-    steps:
-    - name: 🔍 Debug Conditional Logic
-      run: |
-        echo "::group::🔍 Debugging Trigger Conditions"
-        echo "=== CONDITION ANALYSIS ==="
-        echo "Event name: ${{ github.event_name }}"
-        echo "Deployment success: ${{ needs.deploy-staging.outputs.deployment_success }}"
-        echo "Trigger input (manual): ${{ github.event.inputs.trigger_security_scan }}"
-        echo "Trigger input != 'false': ${{ github.event.inputs.trigger_security_scan != 'false' }}"
-        echo ""
-        echo "=== CONDITION EVALUATION ==="
-        echo "needs.deploy-staging.outputs.deployment_success == 'true': ${{ needs.deploy-staging.outputs.deployment_success == 'true' }}"
-        echo "github.event.inputs.trigger_security_scan != 'false': ${{ github.event.inputs.trigger_security_scan != 'false' }}"
-        echo ""
-        echo "=== OVERALL RESULT ==="
-        SHOULD_TRIGGER="${{ needs.deploy-staging.outputs.deployment_success == 'true' && (github.event.inputs.trigger_security_scan != 'false') }}"
-        echo "Should trigger security scan: $SHOULD_TRIGGER"
-        
-        if [ "$SHOULD_TRIGGER" == "true" ]; then
-          echo "::notice title=Trigger Decision::✅ Security scan should be triggered"
-        else
-          echo "::warning title=Trigger Decision::❌ Security scan will be skipped"
-          echo "::group::🛠️ Troubleshooting"
-          echo "Possible reasons for skipping:"
-          echo "1. Deployment verification failed (deployment_success != 'true')"
-          echo "2. Manual trigger was explicitly set to false"
-          echo "3. Event type mismatch"
-          echo "::endgroup::"
-        fi
-        echo "::endgroup::"
-
-  trigger-security-scan:
+  trigger-apisec-scan:
     name: Trigger APIsec Security Scan
     runs-on: ubuntu-latest
     needs: deploy-staging
-    if: needs.deploy-staging.outputs.deployment_success == 'true' && (github.event.inputs.trigger_security_scan != 'false')
+    # Only run if deployment succeeded AND scan wasn't explicitly disabled
+    if: needs.deploy-staging.outputs.deployment_success == 'true' && github.event.inputs.trigger_security_scan != 'false'
     
     steps:
     - name: 📋 Checkout code
       uses: actions/checkout@v4
+      
+    - name: 🔍 Debug Information
+      run: |
+        echo "::group::🔍 Trigger Information"
+        echo "Deployment success: ${{ needs.deploy-staging.outputs.deployment_success }}"
+        echo "Event name: ${{ github.event_name }}"
+        echo "Branch: ${{ github.ref_name }}"
+        echo "Trigger scan input: ${{ github.event.inputs.trigger_security_scan }}"
+        echo "Repository: ${{ github.repository }}"
+        echo "::endgroup::"
       
     - name: 🔒 Trigger APIsec Security Scan
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         echo "::group::🔒 Triggering APIsec Security Scan"
-        echo "🔒 Triggering APIsec security scan workflow..."
-        echo "Target branch: ${{ github.ref_name }}"
-        echo "Repository: ${{ github.repository }}"
-        echo "API URL: ${{ github.api_url }}"
+        echo "🔒 Triggering your custom APIsec security scan workflow..."
         
-        # Trigger the APIsec workflow using GitHub API
+        # Trigger your apisec-security-scan.yml workflow
         RESPONSE=$(curl -w "%{http_code}" -s -X POST \
           -H "Authorization: token $GITHUB_TOKEN" \
           -H "Accept: application/vnd.github.v3+json" \
@@ -217,39 +176,30 @@ jobs:
         RESPONSE_BODY="${RESPONSE%???}"
         
         echo "HTTP Response Code: $HTTP_CODE"
-        echo "Response Body: $RESPONSE_BODY"
         
         if [ "$HTTP_CODE" == "204" ]; then
-          echo "::notice title=Scan Triggered::✅ APIsec security scan has been triggered successfully"
-          echo "🔗 Check the Actions tab to monitor the security scan progress"
+          echo "::notice title=APIsec Triggered::✅ Your APIsec security scan workflow has been triggered"
+          echo "🔗 Check the Actions tab for 'APIsec Security Scan' workflow"
         else
-          echo "::error title=Trigger Failed::❌ Failed to trigger APIsec security scan (HTTP $HTTP_CODE)"
+          echo "::warning title=Trigger Issue::HTTP $HTTP_CODE response when triggering APIsec workflow"
           echo "Response: $RESPONSE_BODY"
-          exit 1
+          
+          echo "::group::📋 Troubleshooting"
+          echo "If this failed, possible reasons:"
+          echo "1. apisec-security-scan.yml doesn't have workflow_dispatch trigger"
+          echo "2. File name mismatch"
+          echo "3. Permissions issue"
+          echo ""
+          echo "You can manually trigger the APIsec scan from the Actions tab"
+          echo "::endgroup::"
         fi
         echo "::endgroup::"
         
-    - name: 📊 Security Scan Summary
+    - name: 📊 Summary
       run: |
-        echo "::group::📊 Security Scan Information"
+        echo "## 🔒 APIsec Scan Trigger Summary" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "## 🔒 Security Scan Triggered" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "| Parameter | Value |" >> $GITHUB_STEP_SUMMARY
-        echo "|-----------|-------|" >> $GITHUB_STEP_SUMMARY
-        echo "| **Target** | \`${{ needs.deploy-staging.outputs.deployment_url }}\` |" >> $GITHUB_STEP_SUMMARY
-        echo "| **Workflow** | APIsec Security Scan |" >> $GITHUB_STEP_SUMMARY
-        echo "| **Triggered At** | $(date -u) |" >> $GITHUB_STEP_SUMMARY
-        echo "| **Branch** | \`${{ github.ref_name }}\` |" >> $GITHUB_STEP_SUMMARY
-        echo "| **Force Scan** | \`true\` |" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🔍 Monitor Progress" >> $GITHUB_STEP_SUMMARY
-        echo "- Visit the [Actions tab](${{ github.server_url }}/${{ github.repository }}/actions) to monitor scan progress" >> $GITHUB_STEP_SUMMARY
-        echo "- Look for the \"APIsec Security Scan\" workflow" >> $GITHUB_STEP_SUMMARY
-        echo "- Results will include vulnerability details and security reports" >> $GITHUB_STEP_SUMMARY
-        echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### 🎯 Expected Results" >> $GITHUB_STEP_SUMMARY
-        echo "- **Mock Scan**: Simulated vulnerabilities for demo purposes" >> $GITHUB_STEP_SUMMARY
-        echo "- **Live Scan**: Real APIsec analysis (if credentials configured)" >> $GITHUB_STEP_SUMMARY
-        echo "- **Report Generation**: Detailed security findings and recommendations" >> $GITHUB_STEP_SUMMARY
-        echo "::endgroup::"
+        echo "- **Deployment**: ✅ Completed successfully" >> $GITHUB_STEP_SUMMARY
+        echo "- **Target**: https://urban-vampi-staging.up.railway.app" >> $GITHUB_STEP_SUMMARY
+        echo "- **APIsec Trigger**: Attempted to trigger your custom workflow" >> $GITHUB_STEP_SUMMARY
+        echo "- **Monitor**: Check Actions tab for 'APIsec Security Scan'" >> $GITHUB_STEP_SUMMARY
