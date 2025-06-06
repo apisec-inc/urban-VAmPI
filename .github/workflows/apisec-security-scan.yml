@@ -84,6 +84,7 @@ jobs:
           APISEC_API_KEY: ${{ secrets.APISEC_API_KEY }}
           APISEC_APPLICATION_ID: ${{ secrets.APISEC_APPLICATION_ID }}
           APISEC_INSTANCE_ID: ${{ secrets.APISEC_INSTANCE_ID }}
+          APISEC_DEBUG: true 
           MEDUSA_URL: ${{ env.VAMPI_URL }}
         run: |
           echo "::group::🔒 APIsec Security Scan Execution"
