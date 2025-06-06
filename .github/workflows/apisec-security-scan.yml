@@ -24,355 +24,126 @@ jobs:
     name: APIsec Security Scan
     
     steps:
-      - name: 📋 Checkout Code
+      - name: Checkout Code
         uses: actions/checkout@v4
         
-      - name: 🔧 Setup Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '18'
           
-      - name: 📦 Install Dependencies
+      - name: Install Dependencies
         run: |
-          echo "::group::📦 Installing APIsec scanning dependencies"
-          echo "::notice title=Dependencies::Installing axios and dotenv for APIsec integration"
+          echo "📦 Installing APIsec scanning dependencies..."
           npm install axios dotenv
-          echo "✅ Dependencies installed successfully"
-          echo "::endgroup::"
           
-      - name: 🔧 Load Environment Variables
+      - name: Load Environment Variables
         run: |
-          echo "::group::🔧 Loading Environment Configuration"
           if [ -f .env ]; then
-            echo "::notice title=Environment::Loading variables from .env file"
+            echo "📄 Loading environment variables from .env file..."
             set -a
             source .env
             set +a
             cat .env | grep -v '^#' | grep '=' >> $GITHUB_ENV
-            echo "✅ Environment variables loaded successfully"
+            echo "✅ Environment variables loaded"
           else
-            echo "::warning title=No .env File::Using workflow defaults - no .env file found"
+            echo "⚠️  No .env file found - using workflow defaults"
           fi
-          echo "::endgroup::"
           
-      - name: ✅ Validate Environment
+      - name: Validate Environment
         run: |
-          echo "::group::🔍 Validating APIsec Configuration"
-          echo "::notice title=Configuration::Target URL: ${VAMPI_URL}"
-          echo "::notice title=Configuration::App Name: ${APISEC_APP_NAME}"
+          echo "🔍 Validating APIsec configuration..."
+          echo "Target URL: ${VAMPI_URL}"
+          echo "App Name: ${APISEC_APP_NAME}"
           
           if [ -z "${{ secrets.APISEC_API_KEY }}" ]; then
-            echo "::warning title=Mock Mode::APISEC_API_KEY not configured - will use mock scan"
-            echo "fallback_mode=true" >> $GITHUB_ENV
+            echo "⚠️  APISEC_API_KEY not configured - will use mock scan"
           else
-            echo "::notice title=Live Mode::APIsec credentials available for live scanning"
-            echo "fallback_mode=false" >> $GITHUB_ENV
+            echo "✅ APIsec credentials available"
           fi
           
-          # Add configuration summary to step summary
-          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          ## 🔧 APIsec Configuration
-          
-          | Parameter | Value | Status |
-          |-----------|-------|--------|
-          | Target URL | `${{ env.VAMPI_URL }}` | ✅ Configured |
-          | App Name | `${{ env.APISEC_APP_NAME }}` | ✅ Set |
-          | API Key | `${{ secrets.APISEC_API_KEY && '***' || 'Not Set' }}` | ${{ secrets.APISEC_API_KEY && '✅ Available' || '⚠️ Mock Mode' }} |
-          | Fallback Mode | `${{ env.FALLBACK_TO_MOCK }}` | ✅ Enabled |
-          
-          EOF
-          echo "::endgroup::"
-          
-      - name: 🌐 Test API Availability
-        id: api_test
-        continue-on-error: true
+      - name: Test API Availability
         run: |
-          echo "::group::🌐 Testing Vampi API Availability"
-          echo "::notice title=Connectivity::Testing connection to ${VAMPI_URL}"
-          
-          # Test multiple endpoints for better coverage
-          HEALTH_STATUS=0
-          ROOT_STATUS=0
-          
-          echo "Testing /health endpoint..."
-          if curl -f -s --max-time 10 ${VAMPI_URL}/health > /dev/null 2>&1; then
-            echo "✅ /health endpoint accessible"
-            HEALTH_STATUS=1
-          else
-            echo "⚠️ /health endpoint not accessible"
-          fi
-          
-          echo "Testing root endpoint..."
-          if curl -f -s --max-time 10 ${VAMPI_URL}/ > /dev/null 2>&1; then
-            echo "✅ Root endpoint accessible"
-            ROOT_STATUS=1
-          else
-            echo "⚠️ Root endpoint not accessible"
-          fi
-          
-          if [ $HEALTH_STATUS -eq 1 ] || [ $ROOT_STATUS -eq 1 ]; then
-            echo "::notice title=API Status::Vampi API is accessible and ready for scanning"
-            echo "api_accessible=true" >> $GITHUB_OUTPUT
-          else
-            echo "::error title=API Unavailable::Vampi API is not accessible at ${VAMPI_URL}"
-            echo "::group::🛠️ Troubleshooting Steps"
-            echo "1. Check if the Railway staging deployment is running"
-            echo "2. Verify the URL is correct: ${VAMPI_URL}"
-            echo "3. Check Railway service status"
-            echo "4. Review recent deployment logs"
-            echo "::endgroup::"
-            echo "api_accessible=false" >> $GITHUB_OUTPUT
+          echo "🔍 Testing Vampi API availability..."
+          curl -f ${VAMPI_URL}/health || curl -f ${VAMPI_URL}/ || {
+            echo "❌ Vampi API is not accessible at ${VAMPI_URL}"
             exit 1
-          fi
-          echo "::endgroup::"
+          }
+          echo "✅ Vampi API is accessible"
           
-      - name: 🔒 Run APIsec Security Scan
-        id: security_scan
-        continue-on-error: true
+      - name: Run APIsec Security Scan
         env:
           APISEC_API_KEY: ${{ secrets.APISEC_API_KEY }}
           APISEC_APPLICATION_ID: ${{ secrets.APISEC_APPLICATION_ID }}
           APISEC_INSTANCE_ID: ${{ secrets.APISEC_INSTANCE_ID }}
           MEDUSA_URL: ${{ env.VAMPI_URL }}
         run: |
-          echo "::group::🔒 APIsec Security Scan Execution"
+          echo "🔒 Starting APIsec security scan..."
           
-          SCAN_START_TIME=$(date +%s)
-          
-          if [ -n "${{ secrets.APISEC_API_KEY }}" ] && [ "${{ env.fallback_mode }}" != "true" ]; then
-            echo "::notice title=Live Scan::Running live APIsec scan with real credentials"
-            if node scripts/apisec-scan.js; then
-              SCAN_STATUS="success"
-              echo "✅ Live APIsec scan completed successfully"
-            else
-              SCAN_STATUS="failed"
-              echo "::error title=Live Scan Failed::APIsec live scan encountered errors"
-              echo "::group::🔄 Attempting Fallback"
-              echo "::warning title=Fallback Mode::Switching to mock scan due to live scan failure"
-              if node scripts/apisec-mock-scan.js; then
-                SCAN_STATUS="fallback_success"
-                echo "✅ Mock scan completed successfully as fallback"
-              else
-                echo "::error title=Fallback Failed::Both live and mock scans failed"
-                SCAN_STATUS="total_failure"
-              fi
-              echo "::endgroup::"
-            fi
+          if [ -n "${{ secrets.APISEC_API_KEY }}" ]; then
+            echo "🚀 Running live APIsec scan..."
+            node scripts/apisec-scan.js
           else
-            echo "::notice title=Mock Scan::Running mock APIsec scan (credentials not available)"
-            if node scripts/apisec-mock-scan.js; then
-              SCAN_STATUS="mock_success"
-              echo "✅ Mock APIsec scan completed successfully"
-            else
-              SCAN_STATUS="failed"
-              echo "::error title=Mock Scan Failed::APIsec mock scan encountered errors"
-            fi
+            echo "🎭 Running mock APIsec scan..."
+            node scripts/apisec-mock-scan.js
           fi
           
-          SCAN_END_TIME=$(date +%s)
-          SCAN_DURATION=$((SCAN_END_TIME - SCAN_START_TIME))
-          
-          echo "scan_status=$SCAN_STATUS" >> $GITHUB_OUTPUT
-          echo "scan_duration=$SCAN_DURATION" >> $GITHUB_OUTPUT
-          
-          # Create scan execution summary
-          cat >> $GITHUB_STEP_SUMMARY << EOF
-          ## 🔒 Security Scan Execution
-          
-          | Metric | Value |
-          |--------|-------|
-          | Scan Type | $([ -n "${{ secrets.APISEC_API_KEY }}" ] && echo "Live APIsec" || echo "Mock Simulation") |
-          | Duration | ${SCAN_DURATION} seconds |
-          | Status | $(case $SCAN_STATUS in
-            "success") echo "✅ Completed Successfully" ;;
-            "mock_success") echo "✅ Mock Scan Completed" ;;
-            "fallback_success") echo "⚠️ Completed with Fallback" ;;
-            "failed") echo "❌ Failed" ;;
-            "total_failure") echo "❌ Complete Failure" ;;
-          esac) |
-          | Target | \`${{ env.VAMPI_URL }}\` |
-          | Timestamp | $(date -u) |
-          
-          EOF
-          
-          echo "::endgroup::"
-          
-          # Exit with appropriate code
-          case $SCAN_STATUS in
-            "success"|"mock_success"|"fallback_success") exit 0 ;;
-            *) exit 1 ;;
-          esac
-          
-      - name: 📊 Parse Scan Results
-        if: always()
-        id: parse_results
+      - name: Parse Scan Results
         run: |
-          echo "::group::📊 Processing Security Scan Results"
+          echo "📊 Processing scan results..."
+          if [ -f scan-results.json ]; then
+            echo "✅ Scan results found"
+            node scripts/parse-scan-results.js
+          else
+            echo "❌ No scan results file found"
+            exit 1
+          fi
+          
+      - name: Generate Security Report
+        run: |
+          echo "# 🔒 Vampi APIsec Security Report" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Target:** ${VAMPI_URL}" >> $GITHUB_STEP_SUMMARY
+          echo "**Branch:** develop" >> $GITHUB_STEP_SUMMARY
+          echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ -f scan-results.json ]; then
-            echo "::notice title=Results Found::Processing APIsec scan results"
+            echo "## 📊 Scan Results" >> $GITHUB_STEP_SUMMARY
             
-            if node scripts/parse-scan-results.js; then
-              echo "✅ Scan results parsed successfully"
-              echo "results_parsed=true" >> $GITHUB_OUTPUT
-            else
-              echo "::error title=Parse Failed::Failed to parse scan results"
-              echo "results_parsed=false" >> $GITHUB_OUTPUT
-            fi
-          else
-            echo "::warning title=No Results::No scan results file found"
-            echo "::group::🔍 Troubleshooting"
-            echo "Possible causes:"
-            echo "1. Scan script failed before generating results"
-            echo "2. Results file path is incorrect"
-            echo "3. Scan was interrupted"
-            echo "::endgroup::"
-            echo "results_parsed=false" >> $GITHUB_OUTPUT
-          fi
-          
-          echo "::endgroup::"
-          
-      - name: 📋 Generate Security Report
-        if: always()
-        id: generate_report
-        run: |
-          echo "::group::📋 Generating Security Report"
-          
-          # Start the security report
-          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          
-          # 🔒 Vampi APIsec Security Report
-          
-          ## 📊 Scan Overview
-          EOF
-          
-          cat >> $GITHUB_STEP_SUMMARY << EOF
-          | Parameter | Value |
-          |-----------|-------|
-          | **Target** | \`${{ env.VAMPI_URL }}\` |
-          | **Branch** | \`${{ github.ref_name }}\` |
-          | **Scan Type** | $([ "${{ steps.security_scan.outputs.scan_status }}" == "success" ] && echo "🔴 Live APIsec" || echo "🎭 Mock Simulation") |
-          | **Duration** | ${{ steps.security_scan.outputs.scan_duration || 'Unknown' }} seconds |
-          | **Timestamp** | $(date -u) |
-          | **Workflow** | [\#${{ github.run_number }}](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}) |
-          
-          EOF
-          
-          if [ -f scan-results.json ] && [ "${{ steps.parse_results.outputs.results_parsed }}" == "true" ]; then
-            echo "::notice title=Report Generation::Creating detailed vulnerability report"
+            CRITICAL=$(node -e "console.log(require('./scan-results.json').summary.critical_severity || 0)")
+            HIGH=$(node -e "console.log(require('./scan-results.json').summary.high_severity || 0)")
+            MEDIUM=$(node -e "console.log(require('./scan-results.json').summary.medium_severity || 0)")
+            LOW=$(node -e "console.log(require('./scan-results.json').summary.low_severity || 0)")
             
-            # Extract vulnerability counts
-            CRITICAL=$(node -e "try { console.log(require('./scan-results.json').summary.critical_severity || 0); } catch(e) { console.log(0); }")
-            HIGH=$(node -e "try { console.log(require('./scan-results.json').summary.high_severity || 0); } catch(e) { console.log(0); }")
-            MEDIUM=$(node -e "try { console.log(require('./scan-results.json').summary.medium_severity || 0); } catch(e) { console.log(0); }")
-            LOW=$(node -e "try { console.log(require('./scan-results.json').summary.low_severity || 0); } catch(e) { console.log(0); }")
+            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+            echo "| Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
+            echo "| High | $HIGH |" >> $GITHUB_STEP_SUMMARY
+            echo "| Medium | $MEDIUM |" >> $GITHUB_STEP_SUMMARY
+            echo "| Low | $LOW |" >> $GITHUB_STEP_SUMMARY
             
-            TOTAL=$((CRITICAL + HIGH + MEDIUM + LOW))
-            
-            cat >> $GITHUB_STEP_SUMMARY << EOF
-          ## 🛡️ Vulnerability Summary
-          
-          | Severity | Count | Status |
-          |----------|-------|--------|
-          | 🔴 Critical | $CRITICAL | $([ $CRITICAL -eq 0 ] && echo "✅ Clean" || echo "🚨 Action Required") |
-          | 🟠 High | $HIGH | $([ $HIGH -eq 0 ] && echo "✅ Clean" || echo "⚠️ Review Needed") |
-          | 🟡 Medium | $MEDIUM | $([ $MEDIUM -eq 0 ] && echo "✅ Clean" || echo "📋 Monitor") |
-          | 🔵 Low | $LOW | $([ $LOW -eq 0 ] && echo "✅ Clean" || echo "ℹ️ Informational") |
-          | **Total** | **$TOTAL** | $([ $TOTAL -eq 0 ] && echo "🏆 **Excellent Security**" || echo "📊 **Needs Review**") |
-          
-          EOF
-            
-            # Security score calculation
-            SCORE=$((100 - (CRITICAL * 25) - (HIGH * 15) - (MEDIUM * 8) - (LOW * 3)))
-            SCORE=$([ $SCORE -lt 0 ] && echo 0 || echo $SCORE)
-            
-            GRADE=""
-            EMOJI=""
-            case $SCORE in
-              9[0-9]|100) GRADE="A+"; EMOJI="🏆" ;;
-              8[0-9]) GRADE="A"; EMOJI="🥇" ;;
-              7[0-9]) GRADE="B"; EMOJI="👍" ;;
-              6[0-9]) GRADE="C"; EMOJI="⚠️" ;;
-              5[0-9]) GRADE="D"; EMOJI="📊" ;;
-              *) GRADE="F"; EMOJI="🚨" ;;
-            esac
-            
-            cat >> $GITHUB_STEP_SUMMARY << EOF
-          ## 📊 Security Score
-          
-          $EMOJI **Grade: $GRADE ($SCORE/100)**
-          
-          EOF
-            
-            # Add critical vulnerability alert
             if [ "$CRITICAL" -gt 0 ]; then
-              cat >> $GITHUB_STEP_SUMMARY << EOF
-          ## 🚨 Critical Security Alert
+              echo "" >> $GITHUB_STEP_SUMMARY
+              echo "🚨 **Critical vulnerabilities found!**" >> $GITHUB_STEP_SUMMARY
+            fi
+          fi
           
-          **$CRITICAL critical vulnerabilities** require immediate attention!
-          
-          ### Immediate Actions Required:
-          - [ ] Review all critical findings
-          - [ ] Implement security patches
-          - [ ] Block deployment until resolved
-          - [ ] Escalate to security team
-          
-          EOF
-              echo "critical_found=true" >> $GITHUB_OUTPUT
-            else
-              echo "critical_found=false" >> $GITHUB_OUTPUT
+      - name: Check Critical Vulnerabilities
+        run: |
+          if [ -f scan-results.json ]; then
+            CRITICAL_COUNT=$(node -e "console.log(require('./scan-results.json').summary.critical_severity || 0)")
+            
+            if [ "$CRITICAL_COUNT" -gt 0 ]; then
+              echo "🚨 Critical vulnerabilities found: $CRITICAL_COUNT"
+              echo "❌ Failing build due to critical security issues"
+              exit 1
             fi
             
-          else
-            cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          ## ⚠️ Report Generation Failed
-          
-          Unable to generate detailed vulnerability report due to:
-          - Missing or invalid scan results file
-          - Results parsing failure
-          - Scan execution issues
-          
-          ### Troubleshooting Steps:
-          1. Check scan execution logs above
-          2. Verify script file paths
-          3. Review error messages in previous steps
-          4. Consider re-running the workflow
-          
-          EOF
-            echo "critical_found=false" >> $GITHUB_OUTPUT
+            echo "✅ No critical vulnerabilities found"
           fi
           
-          echo "::endgroup::"
-          
-      - name: 🔍 Check Critical Vulnerabilities
-        if: always()
-        run: |
-          echo "::group::🔍 Critical Vulnerability Assessment"
-          
-          if [ "${{ steps.generate_report.outputs.critical_found }}" == "true" ]; then
-            CRITICAL_COUNT=$(node -e "try { console.log(require('./scan-results.json').summary.critical_severity || 0); } catch(e) { console.log(0); }")
-            
-            echo "::error title=Critical Vulnerabilities::$CRITICAL_COUNT critical vulnerabilities found - failing build"
-            echo "::group::🚨 Security Policy Violation"
-            echo "Build failed due to critical security vulnerabilities."
-            echo "Critical vulnerabilities must be resolved before deployment."
-            echo ""
-            echo "Next steps:"
-            echo "1. Review the security report above"
-            echo "2. Address all critical findings"
-            echo "3. Re-run security scan"
-            echo "4. Only proceed when scan is clean"
-            echo "::endgroup::"
-            
-            exit 1
-          else
-            echo "::notice title=Security Check::✅ No critical vulnerabilities found - build can proceed"
-          fi
-          
-          echo "::endgroup::"
-          
-      - name: 📁 Upload Scan Results
-        if: always()
+      - name: Upload Scan Results
         uses: actions/upload-artifact@v4
         with:
           name: vampi-apisec-scan-results-${{ github.run_number }}
@@ -380,76 +151,3 @@ jobs:
             scan-results.json
             scan-report.md
           retention-days: 30
-          
-      - name: 🎯 Final Status Summary
-        if: always()
-        run: |
-          echo "::group::🎯 Pipeline Execution Summary"
-          
-          # Determine overall status
-          API_STATUS="${{ steps.api_test.outputs.api_accessible }}"
-          SCAN_STATUS="${{ steps.security_scan.outputs.scan_status }}"
-          PARSE_STATUS="${{ steps.parse_results.outputs.results_parsed }}"
-          CRITICAL_STATUS="${{ steps.generate_report.outputs.critical_found }}"
-          
-          echo "API Accessibility: $API_STATUS"
-          echo "Scan Status: $SCAN_STATUS"
-          echo "Results Parsed: $PARSE_STATUS"
-          echo "Critical Vulnerabilities: $CRITICAL_STATUS"
-          
-          # Create final summary
-          cat >> $GITHUB_STEP_SUMMARY << 'EOF'
-          
-          ---
-          
-          ## 🎯 Pipeline Summary
-          
-          EOF
-          
-          cat >> $GITHUB_STEP_SUMMARY << EOF
-          | Component | Status | Details |
-          |-----------|--------|---------|
-          | API Connectivity | $([ "$API_STATUS" == "true" ] && echo "✅ Success" || echo "❌ Failed") | Vampi API accessibility test |
-          | Security Scan | $(case "$SCAN_STATUS" in
-            "success") echo "✅ Success" ;;
-            "mock_success") echo "✅ Mock" ;;
-            "fallback_success") echo "⚠️ Fallback" ;;
-            *) echo "❌ Failed" ;;
-          esac) | APIsec vulnerability scanning |
-          | Results Processing | $([ "$PARSE_STATUS" == "true" ] && echo "✅ Success" || echo "❌ Failed") | Scan results parsing and analysis |
-          | Critical Check | $([ "$CRITICAL_STATUS" == "true" ] && echo "🚨 Failed" || echo "✅ Passed") | Critical vulnerability assessment |
-          
-          ### Overall Result: $(
-            if [ "$CRITICAL_STATUS" == "true" ]; then
-              echo "🚨 **BUILD FAILED** - Critical vulnerabilities found"
-            elif [ "$API_STATUS" != "true" ]; then
-              echo "❌ **BUILD FAILED** - API connectivity issues"
-            elif [[ "$SCAN_STATUS" == "success" || "$SCAN_STATUS" == "mock_success" || "$SCAN_STATUS" == "fallback_success" ]] && [ "$PARSE_STATUS" == "true" ]; then
-              echo "✅ **BUILD PASSED** - Security scan completed successfully"
-            else
-              echo "⚠️ **BUILD ISSUES** - Check individual component status"
-            fi
-          )
-          
-          ---
-          *APIsec Demo Pipeline - Generated $(date -u)*
-          EOF
-          
-          echo "::endgroup::"
-          
-          # Set final exit code
-          if [ "$CRITICAL_STATUS" == "true" ]; then
-            echo "::error title=Build Failed::Critical vulnerabilities found - see security report"
-            exit 1
-          elif [ "$API_STATUS" != "true" ]; then
-            echo "::error title=Build Failed::API connectivity test failed"
-            exit 1
-          elif [[ ! "$SCAN_STATUS" =~ ^(success|mock_success|fallback_success)$ ]]; then
-            echo "::error title=Build Failed::Security scan failed"
-            exit 1
-          elif [ "$PARSE_STATUS" != "true" ]; then
-            echo "::error title=Build Failed::Results processing failed"
-            exit 1
-          else
-            echo "::notice title=Build Success::Security pipeline completed successfully"
-          fi
