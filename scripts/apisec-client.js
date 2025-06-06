@@ -202,19 +202,19 @@ class APIsecCloudClient {
             throw new Error('Application ID and Instance ID are required for scan trigger');
         }
 
+        // Use the exact payload format that works with curl commands
         const scanData = {
-            target: process.env.VAMPI_URL || process.env.MEDUSA_URL,
-            scan_type: 'security',
+            endpointIds: [],
+            scanWithAuthId: "",
             ...scanConfig
         };
 
         console.log(`🚀 Triggering APIsec scan...`);
         console.log(`   App ID: ${appId}`);
         console.log(`   Instance ID: ${instId}`);
-        console.log(`   Target: ${scanData.target}`);
 
-        // Use the confirmed correct endpoint pattern
-        const endpoint = `applications/${appId}/instances/${instId}/scans`;
+        // FIXED: Use the correct endpoint (singular 'scan', not 'scans')
+        const endpoint = `applications/${appId}/instances/${instId}/scan`;
         
         try {
             const response = await this.makeRequest('POST', endpoint, scanData);
