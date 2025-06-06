@@ -52,6 +52,7 @@ class APIsecCloudClient {
 
         if (this.debug) {
             console.log(`🌐 APIsec API Request: ${method.toUpperCase()} ${url.toString()}`);
+            console.log(`📋 Request Headers:`, JSON.stringify(requestOptions.headers, null, 2));
             if (data) console.log(`📤 Request Payload:`, JSON.stringify(data, null, 2));
         }
 
@@ -113,10 +114,20 @@ class APIsecCloudClient {
                                 rawResponse: responseData
                             });
                         } else {
-                            // Enhanced error details
+                            // Enhanced error details with response body
                             let errorMsg = `HTTP ${res.statusCode}: ${parsedData.message || parsedData.error || responseData || res.statusMessage}`;
                             
-                            if (res.statusCode === 405) {
+                            // Add response body for debugging
+                            if (responseData && responseData.trim()) {
+                                errorMsg += `\n📄 Response Body: ${responseData}`;
+                            }
+                            
+                            if (res.statusCode === 400) {
+                                errorMsg += `\n🔍 HTTP 400 Bad Request - Check:`;
+                                errorMsg += `\n   - API key format and validity`;
+                                errorMsg += `\n   - Required headers and parameters`;
+                                errorMsg += `\n   - Request payload structure`;
+                            } else if (res.statusCode === 405) {
                                 errorMsg += `\n🔍 HTTP 405 Method Not Allowed:`;
                                 errorMsg += `\n   URL: ${url.toString()}`;
                                 errorMsg += `\n   Method: ${options.method}`;
@@ -128,6 +139,11 @@ class APIsecCloudClient {
                                 errorMsg += `\n🚫 Access forbidden - check API permissions`;
                             } else if (res.statusCode === 404) {
                                 errorMsg += `\n🔍 Endpoint not found - check URL structure`;
+                            } else if (res.statusCode === 500) {
+                                errorMsg += `\n🔥 Internal Server Error - APIsec service issue`;
+                                errorMsg += `\n   - This may be temporary`;
+                                errorMsg += `\n   - Check APIsec service status`;
+                                errorMsg += `\n   - Verify your account/API limits`;
                             }
                             
                             reject(new Error(errorMsg));
@@ -163,33 +179,51 @@ class APIsecCloudClient {
         try {
             console.log('🔍 Testing APIsec API connection...');
             
-            // Test with applications endpoint - should be safe for any valid token
-            const response = await this.makeRequest('GET', 'applications');
+            // Try multiple test endpoints in order of simplicity
+            const testEndpoints = [
+                { path: 'ping', method: 'GET', name: 'Health Check' },
+                { path: 'health', method: 'GET', name: 'Health Status' },
+                { path: 'status', method: 'GET', name: 'Service Status' },
+                { path: 'user', method: 'GET', name: 'User Info' },
+                { path: 'applications', method: 'GET', name: 'Applications List' }
+            ];
             
-            if (response.status === 200) {
-                const apps = response.data;
-                console.log(`✅ APIsec connection successful - found ${Array.isArray(apps) ? apps.length : 'unknown'} applications`);
-                
-                if (this.debug && Array.isArray(apps)) {
-                    console.log('📋 Available applications:', apps.map(app => ({
-                        id: app.id,
-                        name: app.name || app.appName
-                    })));
+            for (const endpoint of testEndpoints) {
+                try {
+                    console.log(`🔍 Testing ${endpoint.name}: ${endpoint.method} /${endpoint.path}`);
+                    const response = await this.makeRequest(endpoint.method, endpoint.path);
+                    
+                    if (response.status === 200) {
+                        console.log(`✅ APIsec connection successful via ${endpoint.name}`);
+                        
+                        if (this.debug) {
+                            console.log(`📊 ${endpoint.name} Response:`, response.data);
+                        }
+                        
+                        return true;
+                    }
+                } catch (error) {
+                    console.warn(`⚠️ ${endpoint.name} failed:`, error.message.split('\n')[0]);
+                    
+                    // If we get specific auth errors, stop trying
+                    if (error.message.includes('401') || error.message.includes('403')) {
+                        console.error('🔐 Authentication issue detected - stopping connection tests');
+                        throw error;
+                    }
+                    
+                    // If we get 405, the endpoint exists but wrong method
+                    if (error.message.includes('405')) {
+                        console.log(`✅ APIsec API is responding (${endpoint.name} endpoint exists)`);
+                        return true;
+                    }
                 }
-                
-                return true;
             }
             
+            console.error('❌ All connection test endpoints failed');
             return false;
+            
         } catch (error) {
             console.error('❌ APIsec connection test failed:', error.message);
-            
-            // If we get 405 on /applications, the API is working but wrong method
-            if (error.message.includes('405')) {
-                console.log('✅ APIsec API is responding (got 405, which means endpoint exists)');
-                return true;
-            }
-            
             return false;
         }
     }
@@ -202,18 +236,17 @@ class APIsecCloudClient {
             throw new Error('Application ID and Instance ID are required for scan trigger');
         }
 
-        // Use the exact payload format that works with curl commands
+        // Simple payload format that APIsec expects
         const scanData = {
-            endpointIds: [],
-            scanWithAuthId: "",
-            ...scanConfig
+            target: process.env.VAMPI_URL || process.env.MEDUSA_URL
         };
 
         console.log(`🚀 Triggering APIsec scan...`);
         console.log(`   App ID: ${appId}`);
         console.log(`   Instance ID: ${instId}`);
+        console.log(`   Target: ${scanData.target}`);
 
-        // FIXED: Use the correct endpoint (singular 'scan', not 'scans')
+        // Use the correct endpoint pattern (singular 'scan' not 'scans')
         const endpoint = `applications/${appId}/instances/${instId}/scan`;
         
         try {
@@ -244,8 +277,8 @@ class APIsecCloudClient {
             throw new Error('Application ID, Instance ID, and Scan ID are required for status check');
         }
 
-        // Use the confirmed correct endpoint pattern (no /status suffix)
-        const endpoint = `applications/${appId}/instances/${instId}/scans/${scanId}`;
+        // Use the correct endpoint pattern (singular 'scan' not 'scans')
+        const endpoint = `applications/${appId}/instances/${instId}/scan/${scanId}`;
         
         try {
             const response = await this.makeRequest('GET', endpoint);
@@ -277,8 +310,8 @@ class APIsecCloudClient {
         const appId = applicationId || this.defaultApplicationId;
         const instId = instanceId || this.defaultInstanceId;
         
-        // Try results endpoint
-        const resultsEndpoint = `applications/${appId}/instances/${instId}/scans/${scanId}/results`;
+        // Try results endpoint (singular 'scan')
+        const resultsEndpoint = `applications/${appId}/instances/${instId}/scan/${scanId}/results`;
         
         try {
             const response = await this.makeRequest('GET', resultsEndpoint);
