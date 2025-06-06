@@ -84,16 +84,17 @@ jobs:
           MEDUSA_URL: ${{ env.VAMPI_URL }}
           # Smart scanner configuration
           FAIL_ON_CRITICAL: true
+          FAIL_ON_ANY_VULNERABILITIES: true
           MAX_SCAN_WAIT_TIME: 300000
           SCAN_POLL_INTERVAL: 15000
           EARLY_FAIL_CHECK: true
         run: |
           echo "::group::🔒 APIsec Security Scan Execution"
-          echo "🔒 Starting smart APIsec security scan..."
+          echo "🔒 Starting APIsec security scan..."
           
           if [ -n "${{ secrets.APISEC_API_KEY }}" ]; then
-            echo "::notice title=Smart Scan::Running smart APIsec scan with early failure detection"
-            node scripts/smart-security-scanner.js
+            echo "::notice title=Live Scan::Running live APIsec scan with vulnerability failure detection"
+            node scripts/apisec-scan.js
           else
             echo "::notice title=Mock Scan::Running mock APIsec scan (credentials not available)"
             node scripts/apisec-mock-scan.js
