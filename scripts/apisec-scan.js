@@ -8,7 +8,7 @@ class VampiAPIsecScanner {
     constructor() {
         this.client = new APIsecCloudClient();
         this.targetUrl = process.env.VAMPI_URL || process.env.MEDUSA_URL;
-        this.appName = process.env.APISEC_APP_NAME || 'vampi-demo';
+        this.appName = process.env.APISEC_APP_NAME || 'urban-vampi';
     }
 
     async runScan() {
