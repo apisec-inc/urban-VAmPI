@@ -61,8 +61,11 @@ jobs:
           echo "Target URL: ${VAMPI_URL}"
           echo "App Name: ${APISEC_APP_NAME}"
           
-          # Force mock mode until APIsec client is implemented
-          echo "::warning title=Mock Mode::Using mock scanner until APIsec client is implemented"
+          if [ -n "${{ secrets.APISEC_API_KEY }}" ]; then
+            echo "::notice title=Live Mode::APIsec live scanning enabled"
+          else
+            echo "::warning title=Mock Mode::APIsec credentials not configured - will use mock scan"
+          fi
           echo "::endgroup::"
           
       - name: Test API Availability
@@ -126,7 +129,7 @@ jobs:
           echo "**Target:** ${VAMPI_URL}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** develop" >> $GITHUB_STEP_SUMMARY
           echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
-          echo "**Mode:** Mock Scan (APIsec client needs implementation)" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode:** Live APIsec Scan" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ -f scan-results.json ]; then
@@ -154,16 +157,29 @@ jobs:
           
       - name: Check Critical Vulnerabilities
         run: |
-          echo "::group::🔍 Critical Vulnerability Assessment"
+          echo "::group::🔍 Security Assessment"
           if [ -f scan-results.json ]; then
+            TOTAL_VULNS=$(node -e "console.log(require('./scan-results.json').summary.vulnerabilities_found || 0)")
             CRITICAL_COUNT=$(node -e "console.log(require('./scan-results.json').summary.critical_severity || 0)")
+            BUILD_FAILED=$(node -e "console.log(require('./scan-results.json').build_failed || false)")
             
-            if [ "$CRITICAL_COUNT" -gt 0 ]; then
-              echo "::error title=Build Failed::$CRITICAL_COUNT critical vulnerabilities found - failing build"
+            echo "📊 Security Summary:"
+            echo "   Total vulnerabilities: $TOTAL_VULNS"
+            echo "   Critical vulnerabilities: $CRITICAL_COUNT"
+            echo "   Build failed: $BUILD_FAILED"
+            
+            if [ "$BUILD_FAILED" = "true" ]; then
+              echo "::error title=Build Failed::APIsec scanner flagged build due to security vulnerabilities"
+              echo "🚨 APIsec scanner flagged build - security vulnerabilities must be fixed"
               exit 1
+            elif [ "$CRITICAL_COUNT" -gt 0 ]; then
+              echo "::error title=Critical Vulnerabilities::$CRITICAL_COUNT critical vulnerabilities found - failing build"
+              exit 1
+            else
+              echo "::notice title=Security Check::✅ No critical vulnerabilities detected"
             fi
-            
-            echo "::notice title=Security Check::✅ No critical vulnerabilities found"
+          else
+            echo "::warning title=No Results::No scan results available for security assessment"
           fi
           echo "::endgroup::"
           
