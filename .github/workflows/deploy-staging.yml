@@ -107,7 +107,7 @@ jobs:
           TEST_STATUS="warning"
         fi
         
-        # Set outputs regardless of endpoint status for debugging
+        # Set outputs
         echo "deployment_url=$DEPLOYMENT_URL" >> $GITHUB_OUTPUT
         
         # Overall deployment status
@@ -119,7 +119,7 @@ jobs:
           echo "::error title=Deployment Failed::Staging deployment verification failed"
           echo "deployment_success=false" >> $GITHUB_OUTPUT
           echo "❌ Setting deployment_success=false"
-          # Don't exit here - let's see if we can still trigger the scan for debugging
+          exit 1
         fi
         
         echo "::endgroup::"
@@ -131,11 +131,11 @@ jobs:
         echo "- **Environment**: Staging" >> $GITHUB_STEP_SUMMARY
         echo "- **Branch**: develop" >> $GITHUB_STEP_SUMMARY
         echo "- **URL**: https://urban-vampi-staging.up.railway.app" >> $GITHUB_STEP_SUMMARY
-        echo "- **Status**: ${{ steps.verify_deployment.outputs.deployment_success == 'true' && '✅ Success' || '❌ Failed' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Status**: ✅ Success" >> $GITHUB_STEP_SUMMARY
         echo "- **Deployment Time**: $(date -u)" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Next Steps" >> $GITHUB_STEP_SUMMARY
-        echo "- 🔒 Security scan trigger: ${{ steps.verify_deployment.outputs.deployment_success == 'true' && 'Will be triggered' || 'Skipped due to deployment failure' }}" >> $GITHUB_STEP_SUMMARY
+        echo "- 🔒 Security scan will be triggered automatically" >> $GITHUB_STEP_SUMMARY
         echo "- 📊 Results will be available in the APIsec workflow" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "### Debug Information" >> $GITHUB_STEP_SUMMARY
@@ -151,7 +151,6 @@ jobs:
     
     steps:
     - name: 🔍 Debug Conditional Logic
-      if: always()
       run: |
         echo "::group::🔍 Debugging Trigger Conditions"
         echo "=== CONDITION ANALYSIS ==="
@@ -161,12 +160,11 @@ jobs:
         echo "Trigger input != 'false': ${{ github.event.inputs.trigger_security_scan != 'false' }}"
         echo ""
         echo "=== CONDITION EVALUATION ==="
-        echo "always(): true (always evaluates to true)"
         echo "needs.deploy-staging.outputs.deployment_success == 'true': ${{ needs.deploy-staging.outputs.deployment_success == 'true' }}"
         echo "github.event.inputs.trigger_security_scan != 'false': ${{ github.event.inputs.trigger_security_scan != 'false' }}"
         echo ""
         echo "=== OVERALL RESULT ==="
-        SHOULD_TRIGGER="${{ always() && needs.deploy-staging.outputs.deployment_success == 'true' && (github.event.inputs.trigger_security_scan != 'false') }}"
+        SHOULD_TRIGGER="${{ needs.deploy-staging.outputs.deployment_success == 'true' && (github.event.inputs.trigger_security_scan != 'false') }}"
         echo "Should trigger security scan: $SHOULD_TRIGGER"
         
         if [ "$SHOULD_TRIGGER" == "true" ]; then
@@ -186,7 +184,6 @@ jobs:
     name: Trigger APIsec Security Scan
     runs-on: ubuntu-latest
     needs: deploy-staging
-    # Fixed condition - removed always() from job level
     if: needs.deploy-staging.outputs.deployment_success == 'true' && (github.event.inputs.trigger_security_scan != 'false')
     
     steps:
