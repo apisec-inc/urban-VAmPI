@@ -274,7 +274,7 @@ class APIsecCloudClient {
         const instId = instanceId || this.defaultInstanceId;
         
         if (!appId || !instId || !scanId) {
-            throw new Error('Application ID, Instance ID, and Scan ID are required for status check');
+            throw new Error('Application ID, Instance ID, Scan ID are required for status check');
         }
 
         // Use the correct endpoint pattern (singular 'scan' not 'scans')
