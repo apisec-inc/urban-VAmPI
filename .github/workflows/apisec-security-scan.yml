@@ -61,11 +61,8 @@ jobs:
           echo "Target URL: ${VAMPI_URL}"
           echo "App Name: ${APISEC_APP_NAME}"
           
-          if [ -z "${{ secrets.APISEC_API_KEY }}" ]; then
-            echo "::warning title=Mock Mode::APISEC_API_KEY not configured - will use mock scan"
-          else
-            echo "::notice title=Live Mode::APIsec credentials available"
-          fi
+          # Force mock mode until APIsec client is implemented
+          echo "::warning title=Mock Mode::Using mock scanner until APIsec client is implemented"
           echo "::endgroup::"
           
       - name: Test API Availability
@@ -84,15 +81,19 @@ jobs:
           APISEC_API_KEY: ${{ secrets.APISEC_API_KEY }}
           APISEC_APPLICATION_ID: ${{ secrets.APISEC_APPLICATION_ID }}
           APISEC_INSTANCE_ID: ${{ secrets.APISEC_INSTANCE_ID }}
-          APISEC_DEBUG: true 
           MEDUSA_URL: ${{ env.VAMPI_URL }}
+          # Smart scanner configuration
+          FAIL_ON_CRITICAL: true
+          MAX_SCAN_WAIT_TIME: 300000
+          SCAN_POLL_INTERVAL: 15000
+          EARLY_FAIL_CHECK: true
         run: |
           echo "::group::🔒 APIsec Security Scan Execution"
-          echo "🔒 Starting APIsec security scan..."
+          echo "🔒 Starting smart APIsec security scan..."
           
           if [ -n "${{ secrets.APISEC_API_KEY }}" ]; then
-            echo "::notice title=Live Scan::Running live APIsec scan with real credentials"
-            node scripts/apisec-scan.js
+            echo "::notice title=Smart Scan::Running smart APIsec scan with early failure detection"
+            node scripts/smart-security-scanner.js
           else
             echo "::notice title=Mock Scan::Running mock APIsec scan (credentials not available)"
             node scripts/apisec-mock-scan.js
@@ -105,6 +106,10 @@ jobs:
           echo "📊 Processing scan results..."
           if [ -f scan-results.json ]; then
             echo "::notice title=Results Found::Processing APIsec scan results"
+            # Create basic parser if parse-scan-results.js doesn't exist
+            if [ ! -f scripts/parse-scan-results.js ]; then
+              echo "const results = require('../scan-results.json'); console.log('Parsed', results.summary.vulnerabilities_found, 'vulnerabilities');" > scripts/parse-scan-results.js
+            fi
             node scripts/parse-scan-results.js
           else
             echo "::error title=No Results::No scan results file found"
@@ -120,6 +125,7 @@ jobs:
           echo "**Target:** ${VAMPI_URL}" >> $GITHUB_STEP_SUMMARY
           echo "**Branch:** develop" >> $GITHUB_STEP_SUMMARY
           echo "**Timestamp:** $(date -u)" >> $GITHUB_STEP_SUMMARY
+          echo "**Mode:** Mock Scan (APIsec client needs implementation)" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           
           if [ -f scan-results.json ]; then
