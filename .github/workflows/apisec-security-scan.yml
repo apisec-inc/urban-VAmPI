@@ -34,11 +34,14 @@ jobs:
           
       - name: Install Dependencies
         run: |
+          echo "::group::📦 Installing APIsec scanning dependencies"
           echo "📦 Installing APIsec scanning dependencies..."
           npm install axios dotenv
+          echo "::endgroup::"
           
       - name: Load Environment Variables
         run: |
+          echo "::group::🔧 Loading Environment Configuration"
           if [ -f .env ]; then
             echo "📄 Loading environment variables from .env file..."
             set -a
@@ -49,27 +52,32 @@ jobs:
           else
             echo "⚠️  No .env file found - using workflow defaults"
           fi
+          echo "::endgroup::"
           
       - name: Validate Environment
         run: |
+          echo "::group::🔍 Validating APIsec Configuration"
           echo "🔍 Validating APIsec configuration..."
           echo "Target URL: ${VAMPI_URL}"
           echo "App Name: ${APISEC_APP_NAME}"
           
           if [ -z "${{ secrets.APISEC_API_KEY }}" ]; then
-            echo "⚠️  APISEC_API_KEY not configured - will use mock scan"
+            echo "::warning title=Mock Mode::APISEC_API_KEY not configured - will use mock scan"
           else
-            echo "✅ APIsec credentials available"
+            echo "::notice title=Live Mode::APIsec credentials available"
           fi
+          echo "::endgroup::"
           
       - name: Test API Availability
         run: |
+          echo "::group::🌐 Testing Vampi API Availability"
           echo "🔍 Testing Vampi API availability..."
           curl -f ${VAMPI_URL}/health || curl -f ${VAMPI_URL}/ || {
-            echo "❌ Vampi API is not accessible at ${VAMPI_URL}"
+            echo "::error title=API Unavailable::Vampi API is not accessible at ${VAMPI_URL}"
             exit 1
           }
-          echo "✅ Vampi API is accessible"
+          echo "::notice title=API Status::Vampi API is accessible and ready for scanning"
+          echo "::endgroup::"
           
       - name: Run APIsec Security Scan
         env:
@@ -78,29 +86,34 @@ jobs:
           APISEC_INSTANCE_ID: ${{ secrets.APISEC_INSTANCE_ID }}
           MEDUSA_URL: ${{ env.VAMPI_URL }}
         run: |
+          echo "::group::🔒 APIsec Security Scan Execution"
           echo "🔒 Starting APIsec security scan..."
           
           if [ -n "${{ secrets.APISEC_API_KEY }}" ]; then
-            echo "🚀 Running live APIsec scan..."
+            echo "::notice title=Live Scan::Running live APIsec scan with real credentials"
             node scripts/apisec-scan.js
           else
-            echo "🎭 Running mock APIsec scan..."
+            echo "::notice title=Mock Scan::Running mock APIsec scan (credentials not available)"
             node scripts/apisec-mock-scan.js
           fi
+          echo "::endgroup::"
           
       - name: Parse Scan Results
         run: |
+          echo "::group::📊 Processing Security Scan Results"
           echo "📊 Processing scan results..."
           if [ -f scan-results.json ]; then
-            echo "✅ Scan results found"
+            echo "::notice title=Results Found::Processing APIsec scan results"
             node scripts/parse-scan-results.js
           else
-            echo "❌ No scan results file found"
+            echo "::error title=No Results::No scan results file found"
             exit 1
           fi
+          echo "::endgroup::"
           
       - name: Generate Security Report
         run: |
+          echo "::group::📋 Generating Security Report"
           echo "# 🔒 Vampi APIsec Security Report" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "**Target:** ${VAMPI_URL}" >> $GITHUB_STEP_SUMMARY
@@ -116,32 +129,35 @@ jobs:
             MEDIUM=$(node -e "console.log(require('./scan-results.json').summary.medium_severity || 0)")
             LOW=$(node -e "console.log(require('./scan-results.json').summary.low_severity || 0)")
             
-            echo "| Severity | Count |" >> $GITHUB_STEP_SUMMARY
-            echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
-            echo "| Critical | $CRITICAL |" >> $GITHUB_STEP_SUMMARY
-            echo "| High | $HIGH |" >> $GITHUB_STEP_SUMMARY
-            echo "| Medium | $MEDIUM |" >> $GITHUB_STEP_SUMMARY
-            echo "| Low | $LOW |" >> $GITHUB_STEP_SUMMARY
+            echo "| Severity | Count | Status |" >> $GITHUB_STEP_SUMMARY
+            echo "|----------|-------|--------|" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔴 Critical | $CRITICAL | $([ $CRITICAL -eq 0 ] && echo "✅ Clean" || echo "🚨 Action Required") |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟠 High | $HIGH | $([ $HIGH -eq 0 ] && echo "✅ Clean" || echo "⚠️ Review Needed") |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🟡 Medium | $MEDIUM | $([ $MEDIUM -eq 0 ] && echo "✅ Clean" || echo "📋 Monitor") |" >> $GITHUB_STEP_SUMMARY
+            echo "| 🔵 Low | $LOW | $([ $LOW -eq 0 ] && echo "✅ Clean" || echo "ℹ️ Informational") |" >> $GITHUB_STEP_SUMMARY
             
             if [ "$CRITICAL" -gt 0 ]; then
               echo "" >> $GITHUB_STEP_SUMMARY
               echo "🚨 **Critical vulnerabilities found!**" >> $GITHUB_STEP_SUMMARY
+              echo "::error title=Critical Vulnerabilities::$CRITICAL critical vulnerabilities require immediate attention"
             fi
           fi
+          echo "::endgroup::"
           
       - name: Check Critical Vulnerabilities
         run: |
+          echo "::group::🔍 Critical Vulnerability Assessment"
           if [ -f scan-results.json ]; then
             CRITICAL_COUNT=$(node -e "console.log(require('./scan-results.json').summary.critical_severity || 0)")
             
             if [ "$CRITICAL_COUNT" -gt 0 ]; then
-              echo "🚨 Critical vulnerabilities found: $CRITICAL_COUNT"
-              echo "❌ Failing build due to critical security issues"
+              echo "::error title=Build Failed::$CRITICAL_COUNT critical vulnerabilities found - failing build"
               exit 1
             fi
             
-            echo "✅ No critical vulnerabilities found"
+            echo "::notice title=Security Check::✅ No critical vulnerabilities found"
           fi
+          echo "::endgroup::"
           
       - name: Upload Scan Results
         uses: actions/upload-artifact@v4
