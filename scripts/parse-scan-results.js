@@ -10,7 +10,7 @@ function parseScanResults() {
 
     const results = JSON.parse(fs.readFileSync('scan-results.json', 'utf8'));
     
-    console.log('\n📊 Vampi APIsec Scan Results Summary:');
+    console.log('\n📊 VAmPI APIsec Scan Results Summary:');
     console.log('=====================================');
     console.log(`🎯 Target: ${results.target}`);
     console.log(`📱 App: ${results.app_name}`);
