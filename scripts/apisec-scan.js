@@ -186,11 +186,11 @@ if (require.main === module) {
     
     scanner.runScan()
         .then(() => {
-            console.log('🎉 Vampi APIsec scan completed successfully!');
+            console.log('🎉 VAmPI APIsec scan completed successfully!');
             process.exit(0);
         })
         .catch(error => {
-            console.error('❌ Vampi APIsec scan failed:', error.message);
+            console.error('❌ VAmPI APIsec scan failed:', error.message);
             process.exit(1);
         });
 }
