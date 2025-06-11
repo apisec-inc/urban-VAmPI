@@ -267,3 +267,67 @@ Recommended GitHub branch protection settings:
 - Require pull request reviews (optional)
 - Allow force pushes from maintainers
 - Include administrators 
+
+# Appendix 2025-06-11 1853 HRS
+
+## High-Level Workflow Steps
+
+### 1. **Push Trigger** (`develop` branch)
+- Code push to `develop` branch triggers `deploy-staging.yml`
+
+### 2. **Deploy to Staging Job** (`deploy-staging.yml`)
+1. **Checkout code** from repository
+2. **Install Railway CLI** for deployment
+3. **Verify Railway CLI** installation
+4. **Test Railway Authentication** using `RAILWAY_TOKEN_STAGING` secret
+5. **Deploy to Railway Staging** 
+   - Sets environment to staging
+   - Uses specific service ID: `e24b40e8-1586-4fe9-9dea-35661be40df7`
+   - Deploys with `railway up --detach`
+6. **Wait 30 seconds** for deployment to process
+7. **Verify deployment** by testing endpoints:
+   - Main endpoint: `https://urban-vampi-staging.up.railway.app/`
+   - Optional test endpoint: `/deployment-test`
+8. **Generate deployment summary** and set output `deployment_success=true`
+
+### 3. **Trigger APIsec Scan Job** (`deploy-staging.yml`)
+- **Conditional execution**: Only runs if deployment succeeded AND scan wasn't disabled
+- **Triggers the separate workflow** `apisec-security-scan.yml` via GitHub API call
+- Uses `workflow_dispatch` to trigger with `force_scan: true`
+
+### 4. **APIsec Security Scan Job** (`apisec-security-scan.yml`)
+1. **Checkout code** and **setup Node.js 18**
+2. **Install dependencies** (`axios`, `dotenv`)
+3. **Load environment variables** from `.env` file if present
+4. **Validate APIsec configuration** and check for live vs mock mode
+5. **Test API availability** at `https://urban-vampi-staging.up.railway.app`
+6. **Run APIsec Security Scan**:
+   - If `APISEC_API_KEY` exists: runs `scripts/apisec-scan.js` (live scan)
+   - Otherwise: runs `scripts/apisec-mock-scan.js` (mock scan)
+
+### 5. **APIsec Scan Execution** (`apisec-scan.js` + `apisec-client.js`)
+1. **Initialize APIsec client** with credentials
+2. **Test connection** to APIsec API
+3. **Trigger scan** using `APIsecCloudClient.triggerScan()`
+4. **Poll for completion** (max 10 minutes, 10-second intervals)
+5. **Analyze results** and check for vulnerabilities
+6. **Fail build** if critical vulnerabilities found (configurable)
+7. **Save results** to `scan-results.json`
+
+### 6. **Post-Scan Processing** (`apisec-security-scan.yml`)
+1. **Parse scan results** from `scan-results.json`
+2. **Generate security report** with vulnerability counts by severity
+3. **Check critical vulnerabilities** and fail build if configured
+4. **Upload scan artifacts** (results and reports) with 30-day retention
+
+## Key Configuration Points
+
+- **Target URL**: `https://urban-vampi-staging.up.railway.app`
+- **APIsec App Name**: `vampi-demo`
+- **Failure Modes**: 
+  - `FAIL_ON_CRITICAL=true`
+  - `FAIL_ON_ANY_VULNERABILITIES=true`
+- **Scan Timeout**: 5 minutes (300,000ms)
+- **Poll Interval**: 15 seconds
+
+The workflow is designed to automatically deploy to staging and then immediately run security scans, failing the build if critical vulnerabilities are detected.
