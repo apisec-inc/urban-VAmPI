@@ -178,7 +178,7 @@ jobs:
         echo "HTTP Response Code: $HTTP_CODE"
         
         if [ "$HTTP_CODE" == "204" ]; then
-          echo "::notice title=APIsec Triggered::✅ Your APIsec security scan workflow has been triggered"
+          echo "::notice title=APIsec Triggered::✅ The APIsec security scan workflow has been triggered"
           echo "🔗 Check the Actions tab for 'APIsec Security Scan' workflow"
         else
           echo "::warning title=Trigger Issue::HTTP $HTTP_CODE response when triggering APIsec workflow"
