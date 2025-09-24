@@ -13,6 +13,12 @@ app in apisec-inc), auto-deploy webhooks are not available. We use **GitHub Acti
 
 ## Branch Strategy
 
+### Branches
+g rev-parse --abbrev-ref --symbolic-full-name @{u} && git remote -v
+origin/develop
+origin  git@github.com:apisec-inc/urban-VAmPI.git (fetch)
+origin  git@github.com:apisec-inc/urban-VAmPI.git (push)
+
 ### Branch-Environment Mapping
 
 | Branch Pattern | Environment | Automated Deploy | Manual Deploy | Purpose |
