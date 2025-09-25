@@ -1,4 +1,4 @@
-FROM ghcr.io/python/cpython:3.11-slim as builder
+FROM public.ecr.aws/docker/library/python:3.11-alpine as builder
 RUN apk --update add bash nano g++
 COPY ./requirements.txt /vampi/requirements.txt
 WORKDIR /vampi
