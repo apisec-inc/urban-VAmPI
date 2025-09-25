@@ -1,10 +1,10 @@
-FROM python:3.11.9-alpine as builder
+FROM python:3.11-slim as builder
 RUN apk --update add bash nano g++
 COPY ./requirements.txt /vampi/requirements.txt
 WORKDIR /vampi
 RUN pip install -r requirements.txt
 
-# Build fresh container, copying across files & compiled parts
+# Build a fresh container, copying across files & compiled parts
 FROM python:3.11-alpine
 
 # Create non-root user in Alpine
