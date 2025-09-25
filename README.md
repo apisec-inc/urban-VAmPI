@@ -331,3 +331,7 @@ git push origin master   # → Production
 - ✅ **Manual fallback**: Railway CLI always available (~30-60s)
 - ✅ **Security**: Environment-specific tokens + GitHub secrets
 - ✅ **Audit trail**: Complete deployment history in GitHub Actions
+
+___  
+
+Made with 🍵 by the CE Team | [APIsec.ai](https://apisec.ai)
