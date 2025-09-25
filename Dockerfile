@@ -1,11 +1,11 @@
-FROM python:3.11-alpine as builder
+FROM public.ecr.aws/docker/library/python:3.11-alpine as builder
 RUN apk --update add bash nano g++
 COPY ./requirements.txt /vampi/requirements.txt
 WORKDIR /vampi
 RUN pip install -r requirements.txt
 
 # Build a fresh container, copying across files & compiled parts
-FROM python:3.11-alpine
+FROM public.ecr.aws/docker/library/python:3.11-alpine
 
 # Create non-root user in Alpine
 RUN addgroup -g 1001 -S vampi && \
