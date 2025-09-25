@@ -4,7 +4,7 @@ COPY ./requirements.txt /vampi/requirements.txt
 WORKDIR /vampi
 RUN pip install -r requirements.txt
 
-# Build a fresh container, copying across files & compiled parts
+# Build fresh container, copying across files & compiled parts
 FROM python:3.11-alpine
 
 # Create non-root user in Alpine
