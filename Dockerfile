@@ -1,4 +1,4 @@
-FROM cgr.dev/chainguard/python:3.11 as builder
+FROM ghcr.io/python/cpython:3.11-slim as builder
 RUN apk --update add bash nano g++
 COPY ./requirements.txt /vampi/requirements.txt
 WORKDIR /vampi
